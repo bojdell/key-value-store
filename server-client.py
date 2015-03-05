@@ -18,11 +18,6 @@ class MyTCPHandler(SocketServer.BaseRequestHandler):
     """
 
     def handle(self):
-        # self.request is the TCP socket connected to the client
-        # self.data = self.request.recv(1024).strip()
-        #print "{} wrote:".format(self.client_address[0])
-        #print self.data
-        # just send back the same data, but upper-cased
         while (1):
             if message_queue.empty():
                 pass
@@ -34,8 +29,7 @@ class MyTCPHandler(SocketServer.BaseRequestHandler):
 def startServer(host, port):
     # Create the server, binding to localhost on port 9999
     server = SocketServer.TCPServer((host, port), MyTCPHandler)
-
-    print "server started on port " + str(port)
+    print "server started on port " + str(port) + "\n"
 
     # Activate the server; this will keep running until you
     # interrupt the program with Ctrl-C
@@ -46,11 +40,9 @@ def startClient(host, port):
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     sock.connect((host, port))
-    print "client listening on port " + str(port)
+    print "client listening on port " + str(port) + "\n"
     while(1):
-        # Connect to server and send data
-        #sock.sendall(data + "\n")
-        # Receive data from the server and shut down
+        # Receive data from the server
         received = sock.recv(1024)
         print "Received: {}".format(received)
 
@@ -71,7 +63,7 @@ if __name__ == "__main__":
     serverThread.setDaemon(True)
     serverThread.start()
 
-    # wait for other 4 servers to be started
+    # wait for other servers to be started
     raw_input("Press Enter to launch clients...")
 
     # start client threads
