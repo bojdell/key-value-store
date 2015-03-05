@@ -56,10 +56,11 @@ if __name__ == "__main__":
     # start server thread for this node
     serverPort = int(sys.argv[1])
     serverThread = threading.Thread(name='server', target=startServer, args=("localhost", serverPort))
+    serverThread.setDaemon(True)
     serverThread.start()
 
     # wait for other 4 servers to be started
-    input("Press Enter to launch clients...")
+    raw_input("Press Enter to launch clients...")
 
     # start client threads
     # clientThreads = []
@@ -68,10 +69,14 @@ if __name__ == "__main__":
     #     clientThreads.append(clientThread)
     #     clientThread.start()
 
-    clientPort = int(sys.argv[1]) - int(sys.argv[1])%2
+    if(serverPort == 5000):
+        clientPort = 5001
+    else:
+        clientPort = 5000
     clientThread = threading.Thread(target=startClient, args=("localhost", clientPort))
+    clientThread.setDaemon(True)
     clientThread.start()
 
-
-    
+    while(1):
+        pass
 
