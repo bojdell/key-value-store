@@ -4,6 +4,9 @@ import SocketServer
 import socket
 import sys
 import threading
+import Queue
+
+message_queue = Queue.Queue()
 
 class MyTCPHandler(SocketServer.BaseRequestHandler):
     """
@@ -16,11 +19,17 @@ class MyTCPHandler(SocketServer.BaseRequestHandler):
 
     def handle(self):
         # self.request is the TCP socket connected to the client
-        self.data = self.request.recv(1024).strip()
-        print "{} wrote:".format(self.client_address[0])
-        print self.data
+        # self.data = self.request.recv(1024).strip()
+        #print "{} wrote:".format(self.client_address[0])
+        #print self.data
         # just send back the same data, but upper-cased
-        self.request.sendall(self.data.upper())
+        while (1):
+            if message_queue.empty():
+                pass
+            else:
+                message_data = message_queue.get()
+                print "Sending: " + message_data[0]
+                self.request.sendall(message_data[0])
 
 def startServer(host, port):
     # Create the server, binding to localhost on port 9999
@@ -35,22 +44,16 @@ def startServer(host, port):
 def startClient(host, port):
     # Create a socket (SOCK_STREAM means a TCP socket)
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    data = ""
-
-    try:
+    sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    sock.connect((host, port))
+    print "client listening on port " + str(port)
+    while(1):
         # Connect to server and send data
-        sock.connect((host, port))
-        print "client listening on port " + str(port)
-
-        sock.sendall(data + "\n")
-
+        #sock.sendall(data + "\n")
         # Receive data from the server and shut down
         received = sock.recv(1024)
-    finally:
-        sock.close()
+        print "Received: {}".format(received)
 
-    print "Sent:     {}".format(data)
-    print "Received: {}".format(received)
 
 if __name__ == "__main__":
     # start server thread for this node
@@ -78,5 +81,7 @@ if __name__ == "__main__":
     clientThread.start()
 
     while(1):
-        pass
+        data = raw_input()
+        message_data = data.split()
+        message_queue.put((message_data[1],int(message_data[2])))
 
