@@ -57,8 +57,17 @@ def startClient(host, port):
 
 if __name__ == "__main__":
     # start server thread for this node
-    serverPort = int(sys.argv[1])
-    serverThread = threading.Thread(name='server', target=startServer, args=("localhost", serverPort))
+    serverName = sys.argv[2]
+    config_file = open(sys.argv[1],'r')
+    delay_info = config_file.readline()
+    max_delay = int(delay_info[0])
+    servers = {}
+
+    for line in config_file:
+        node_info = line.split()
+        servers[node_info[2]] = (node_info[0],int(node_info[1]))
+
+    serverThread = threading.Thread(name='server', target=startServer, args=(servers[serverName]))
     serverThread.setDaemon(True)
     serverThread.start()
 
@@ -71,17 +80,14 @@ if __name__ == "__main__":
     #     clientThread = threading.Thread(target=startClient, args=("localhost", 5001 + i))
     #     clientThreads.append(clientThread)
     #     clientThread.start()
-
-    if(serverPort == 5000):
-        clientPort = 5001
-    else:
-        clientPort = 5000
-    clientThread = threading.Thread(target=startClient, args=("localhost", clientPort))
-    clientThread.setDaemon(True)
-    clientThread.start()
+    for nodeName in servers:
+        if(nodeName != serverName):
+            clientThread = threading.Thread(target=startClient, args=(servers[nodeName]))
+            clientThread.setDaemon(True)
+            clientThread.start()
 
     while(1):
         data = raw_input()
         message_data = data.split()
-        message_queue.put((message_data[1],int(message_data[2])))
+        message_queue.put((message_data[1],message_data[2]))
 
