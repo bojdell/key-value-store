@@ -6,7 +6,10 @@ import sys
 import threading
 import Queue
 
-message_queue = Queue.Queue()
+message_queue_A = Queue.Queue()
+message_queue_B = Queue.Queue()
+message_queue_C = Queue.Queue()
+message_queue_D = Queue.Queue()
 
 class MyTCPHandler(SocketServer.BaseRequestHandler):
     """
@@ -26,24 +29,36 @@ class MyTCPHandler(SocketServer.BaseRequestHandler):
                 print "Sending: " + message_data[0]
                 self.request.sendall(message_data[0])
 
-def startServer(host, port):
+def startSender(host, port):
     # Create the server, binding to localhost on port 9999
-    server = SocketServer.TCPServer((host, port), MyTCPHandler)
+    #server = SocketServer.TCPServer((host, port), MyTCPHandler)
     print "server started on port " + str(port) + "\n"
+    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    sock.connect((host,port))
+    while (1):
+        if (port == 5000):
+            if message_queue_A.empty():
+                pass
+            else:
+                message_data = message_queue_A.get()
+                print "Sending: " + message_data
+                conn.sendall(message_data)
 
     # Activate the server; this will keep running until you
     # interrupt the program with Ctrl-C
-    server.serve_forever()
 
-def startClient(host, port):
+def startListener(host, port):
     # Create a socket (SOCK_STREAM means a TCP socket)
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-    sock.connect((host, port))
-    print "client listening on port " + str(port) + "\n"
+    sock.bind((host, port))
+    sock.listen(1)
+    conn,addr =sock.accept()
+    print "listening on port " + str(port) + "\n"
     while(1):
         # Receive data from the server
-        received = sock.recv(1024)
+        received = conn.recv(1024)
         print "Received: {}".format(received)
 
 
@@ -59,12 +74,20 @@ if __name__ == "__main__":
         node_info = line.split()
         servers[node_info[2]] = (node_info[0],int(node_info[1]))
 
-    serverThread = threading.Thread(name='server', target=startServer, args=(servers[serverName]))
-    serverThread.setDaemon(True)
-    serverThread.start()
+    clientThread = threading.Thread(target=startListener, args=(servers[serverName]))
+    clientThread.setDaemon(True)
+    clientThread.start()
+
+    raw_input("Press Enter to launch clients...")
+
+    for nodeName in servers:
+        if(nodeName != serverName):
+            serverThread = threading.Thread(name='server', target=startSender, args=(servers[nodeName]))
+            serverThread.setDaemon(True)
+            serverThread.start()
 
     # wait for other servers to be started
-    raw_input("Press Enter to launch clients...")
+    
 
     # start client threads
     # clientThreads = []
@@ -72,14 +95,11 @@ if __name__ == "__main__":
     #     clientThread = threading.Thread(target=startClient, args=("localhost", 5001 + i))
     #     clientThreads.append(clientThread)
     #     clientThread.start()
-    for nodeName in servers:
-        if(nodeName != serverName):
-            clientThread = threading.Thread(target=startClient, args=(servers[nodeName]))
-            clientThread.setDaemon(True)
-            clientThread.start()
 
     while(1):
         data = raw_input()
         message_data = data.split()
-        message_queue.put((message_data[1],message_data[2]))
+        print message_data
+        if(message_data[2] == 'A'):
+            message_queue_A.put(message_data[1])
 
