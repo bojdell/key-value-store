@@ -39,7 +39,6 @@ class Listener():
     def __listen(self):
         # Create a listener that will receive all incoming messages to this node
         listenSocket = SocketServer.TCPServer((self.host, self.port), MyTCPHandler)
-        print "listening on port " + str(self.port)
 
         # Begin listening; this will keep running until interrupted by Ctrl-C
         listenSocket.serve_forever()
@@ -74,7 +73,6 @@ class Sender():
                 message_data = self.message_queue.get()
                 print self.name + " sending: " + message_data[0] + " to node: " + message_data[1]
                 sendSocket.sendall(message_data[0])
-                sendSocket
 
 # usage: server-client.py conf.txt A
 if __name__ == "__main__":
@@ -87,6 +85,8 @@ if __name__ == "__main__":
     for line in config_file:
         node_info = line.split()
         nodes[node_info[2]] = (node_info[0], int(node_info[1]))
+
+    socket.setdefaulttimeout(None)
 
     # create and start Listener for this node
     listener = Listener(*nodes[myNodeName])
@@ -101,7 +101,8 @@ if __name__ == "__main__":
     senders = []
     for nodeName in nodes:
         if(nodeName != myNodeName):
-            sender = Sender("Sender " + myNodeName + " -> " + nodeName, *nodes[nodeName])
+            #sender = Sender("Sender " + myNodeName + " -> " + nodeName, *nodes[nodeName])
+            sender = Sender(nodeName, *nodes[nodeName])
             senders.append(sender)
             sender.start()
 
@@ -112,5 +113,6 @@ if __name__ == "__main__":
         message = raw_input()
         message_data = message.split()
         for sender in senders:
-            sender.message_queue.put((message_data[1], message_data[2]))
+            if message_data[2] == sender.name:
+                sender.message_queue.put((message_data[1], message_data[2]))
 
