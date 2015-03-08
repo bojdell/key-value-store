@@ -6,6 +6,8 @@ import sys
 import threading
 import Queue
 import time
+import datetime
+import random
 
 class MyTCPHandler(SocketServer.BaseRequestHandler):
     """
@@ -19,8 +21,10 @@ class MyTCPHandler(SocketServer.BaseRequestHandler):
     def handle(self):
         while(1):
             self.data = self.request.recv(1024).strip()
-            print "{} wrote:".format(self.client_address[0])
-            print self.data
+            ts = time.time()
+            st = datetime.datetime.fromtimestamp(ts).strftime('%Y-%m-%d %H:%M:%S')
+            #print "{} wrote:".format(self.client_address[0])
+            print "{} wrote: ".format(self.client_address[0]) + self.data + " at " + st
 
 class Listener():
     """
@@ -48,10 +52,11 @@ class Sender():
     Class to open a connection to another node's Listener and send messages
     """
 
-    def __init__(self, name, host, port):
+    def __init__(self, max_delay, name, host, port):
         self.name = name
         self.host = host
         self.port = port
+        self.max_delay = max_delay
         self.message_queue = Queue.Queue()
 
     def start(self):
@@ -71,15 +76,28 @@ class Sender():
                 time.sleep(0.01)
             else:
                 message_data = self.message_queue.get()
-                print self.name + " sending: " + message_data[0] + " to node: " + message_data[1]
-                sendSocket.sendall(message_data[0])
+                delayThread = threading.Thread(target=self.__delay_send, args = (sendSocket,message_data[0]))
+                delayThread.setDaemon(True)
+                delayThread.start()
+                #self.__delay_send(sendSocket, message_data[0])
+                #print self.name + " sending: " + message_data[0] + " to node: " + message_data[1]
+                #sendSocket.sendall(message_data[0])
+
+    def __delay_send(self, sendSocket, message):
+        delay = random.random() * self.max_delay
+        ts = time.time()
+        st = datetime.datetime.fromtimestamp(ts).strftime('%Y-%m-%d %H:%M:%S')
+        print "Sent \"" + message + "\" to " + self.name + ", system time is " + st
+        time.sleep(delay)
+        sendSocket.sendall(message)
+
 
 # usage: server-client.py conf.txt A
 if __name__ == "__main__":
     myNodeName = sys.argv[2]
     config_file = open(sys.argv[1],'r')
     delay_info = config_file.readline()
-    max_delay = int(delay_info[0])
+    max_delay = int(delay_info)
     nodes = {}
 
     for line in config_file:
@@ -102,7 +120,7 @@ if __name__ == "__main__":
     for nodeName in nodes:
         if(nodeName != myNodeName):
             #sender = Sender("Sender " + myNodeName + " -> " + nodeName, *nodes[nodeName])
-            sender = Sender(nodeName, *nodes[nodeName])
+            sender = Sender(max_delay, nodeName, *nodes[nodeName])
             senders.append(sender)
             sender.start()
 
