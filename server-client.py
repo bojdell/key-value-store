@@ -5,111 +5,119 @@ import socket
 import sys
 import threading
 import Queue
+import time
+import datetime
+import random
 
-message_queue_A = Queue.Queue()
-message_queue_B = Queue.Queue()
-message_queue_C = Queue.Queue()
-message_queue_D = Queue.Queue()
+class Listener():
+    """
+    Class to listen for all incoming messages to this node
+    """
 
-"""class MyTCPHandler(SocketServer.BaseRequestHandler):
-    The RequestHandler class for our server.
+    def __init__(self, max_delay, host, port):
+        self.host = host
+        self.port = port
+        self.max_delay = max_delay
 
-    It is instantiated once per connection to the server, and must
-    override the handle() method to implement communication to the
-    client.
+    def start(self):
+        listenerThread = threading.Thread(target=self.__listen)
+        listenerThread.setDaemon(True)
+        listenerThread.start()
 
-    def handle(self):
+    def __listen(self):
+        # Create a listener that will receive all incoming messages to this node
+        sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        sock.settimeout(None)
+        sock.bind((self.host, self.port))
+
+        while(1):
+            # Receive data from the server
+            received, addr = sock.recvfrom(1024)
+            if received:
+                ts = time.time()
+                st = datetime.datetime.fromtimestamp(ts).strftime('%Y-%m-%d %H:%M:%S')
+                data = received.split()
+                print "Received \"" + data[1] + "\" from " + data[0] + " max delay is " + str(self.max_delay) + " s, system time is " + st
+
+class Sender():
+    """
+    Class to open a connection to another node's Listener and send messages
+    """
+
+    def __init__(self, max_delay, name, host, port):
+        self.name = name
+        self.host = host
+        self.port = port
+        self.max_delay = max_delay
+        self.message_queue = Queue.Queue()
+
+    def start(self):
+        senderThread = threading.Thread(target=self.__send)
+        senderThread.setDaemon(True)
+        senderThread.start()
+
+    def __send(self):
+        time.sleep(0.01)
+        print "server ready to send on port " + str(self.port)
+
         while (1):
-            if message_queue.empty():
-                pass
+            if self.message_queue.empty():
+                time.sleep(0.01)
             else:
-                message_data = message_queue.get()
-                print "Sending: " + message_data[0]
-                self.request.sendall(message_data[0])"""
+                message_data = self.message_queue.get()
+                delayThread = threading.Thread(target=self.__delay_send, args=(message_data[0],))
+                delayThread.setDaemon(True)
+                delayThread.start()
 
-def startSender(nodeName, host, port):
-    # Create the server, binding to localhost on port 9999
-    #server = SocketServer.TCPServer((host, port), MyTCPHandler)
-    #print "sender started on port " + str(port) + "\n"
-    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-    sock.settimeout(None)
-    sock.connect((host,port))
-    while 1:
-        if nodeName == 'A':
-            if not message_queue_A.empty():
-                messageA = message_queue_A.get()
-                print "Sending: " + messageA
-                sock.sendall(messageA)
-        if nodeName == 'B':
-            if not message_queue_B.empty():
-                messageB = message_queue_B.get()
-                print"Sending: " + messageB
-                sock.sendall(messageB)
-        if nodeName == 'C':
-            if not message_queue_C.empty():
-                messageC = message_queue_C.get()
-                print "Sending: " + messageC
-                sock.sendall(messageC)
-        if nodeName == 'D':
-            if not message_queue_D.empty():
-                messageD = message_queue_D.get()
-                print "Sending: " + messageD
-                sock.sendall(messageD)
+    def __delay_send(self, message):
+        delay = random.random() * self.max_delay
+        ts = time.time()
+        st = datetime.datetime.fromtimestamp(ts).strftime('%Y-%m-%d %H:%M:%S')
+        print "Sent \"" + message + "\" to " + self.name + ", system time is " + st
+        time.sleep(delay)
+        sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        sock.sendto(self.name + " " + message, (self.host, self.port))
 
 
-    # Activate the server; this will keep running until you
-    # interrupt the program with Ctrl-C
-
-def startListener(serverName, host, port):
-    # Create a socket (SOCK_STREAM means a TCP socket)
-    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-    sock.settimeout(None)
-    sock.bind((host, port))
-    sock.listen(1)
-    conn,addr =sock.accept()
-    #print serverName + "listening on port " + str(port) + "\n"
-    while(1):
-        # Receive data from the server
-        received = conn.recv(1024)
-        if received:
-            print "Received: " + received
-
-
+# usage: server-client.py conf.txt A
 if __name__ == "__main__":
-    # start server thread for this node
     myNodeName = sys.argv[2]
     config_file = open(sys.argv[1],'r')
     delay_info = config_file.readline()
-    max_delay = int(delay_info[0])
-    servers = {}
+    max_delay = int(delay_info)
+    nodes = {}
 
     for line in config_file:
         node_info = line.split()
-        servers[node_info[2]] = (node_info[2], node_info[0], int(node_info[1]))
+        nodes[node_info[2]] = (node_info[0], int(node_info[1]))
 
-    listenerThread = threading.Thread(target=startListener, args=(servers[myNodeName]))
-    listenerThread.setDaemon(True)
-    listenerThread.start()
+    socket.setdefaulttimeout(None)
 
-    raw_input("Press Enter to launch clients...")
+    # create and start Listener for this node
+    listener = Listener(max_delay,*nodes[myNodeName])
+    listener.start()
+    print "=== Listener Initialized ==="
 
-    for nodeName in servers:
+    # wait for other nodes to be started
+    time.sleep(0.05)
+    raw_input("Press Enter to launch senders...")
+
+    # create and start senders for this node
+    senders = []
+    for nodeName in nodes:
         if(nodeName != myNodeName):
-            senderThread = threading.Thread(name='server', target=startSender, args=(servers[nodeName]))
-            senderThread.setDaemon(True)
-            senderThread.start()
+            sender = Sender(max_delay, nodeName, *nodes[nodeName])
+            senders.append(sender)
+            sender.start()
 
+    print "=== Senders Initialized ==="
+
+    # read commands from stdin until program is terminated
     while(1):
-        data = raw_input( )
-        message_data = data.split()
-        if(message_data[2] == "A"):
-            message_queue_A.put(message_data[1])
-        elif(message_data[2] == "B"):
-            message_queue_B.put(message_data[1])
-        elif(message_data[2] == "C"):
-            message_queue_C.put(message_data[1])
-        elif(message_data[2] == "D"):
-            message_queue_D.put(message_data[1])
+        message = raw_input()
+        message_data = message.split()
+        for sender in senders:
+            if message_data[2] == sender.name:
+                sender.message_queue.put((message_data[1], message_data[2]))
 
