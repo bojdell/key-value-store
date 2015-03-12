@@ -34,6 +34,7 @@ class Listener():
         while(1):
             # Receive data from the server
             received, addr = sock.recvfrom(1024)
+            time.sleep(0.01)
             if received:
                 ts = time.time()
                 st = datetime.datetime.fromtimestamp(ts).strftime('%Y-%m-%d %H:%M:%S')
@@ -46,8 +47,9 @@ class Sender():
     Class to open a connection to another node's Listener and send messages
     """
 
-    def __init__(self, max_delay, name, host, port):
-        self.name = name
+    def __init__(self, max_delay, src_name, dest_name, host, port):
+        self.src_name = src_name
+        self.dest_name = dest_name
         self.host = host
         self.port = port
         self.max_delay = max_delay
@@ -70,10 +72,12 @@ class Sender():
                 delay = random.random() * self.max_delay
                 ts = time.time()
                 st = datetime.datetime.fromtimestamp(ts).strftime('%Y-%m-%d %H:%M:%S')
-                print "Sent \"" + message + "\" to " + self.name + ", system time is " + st
+                print "Sent \"" + message + "\" to " + self.dest_name + ", system time is " + st
+
                 time.sleep(delay)
+
                 sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-                sock.sendto(self.name + " " + message, (self.host, self.port))
+                sock.sendto(self.src_name + " " + message, (self.host, self.port))
 
 # usage: server-client.py conf.txt A input.txt
 if __name__ == "__main__":
@@ -91,7 +95,7 @@ if __name__ == "__main__":
     socket.setdefaulttimeout(None)
 
     # create and start Listener for this node
-    listener = Listener(max_delay,*nodes[myNodeName])
+    listener = Listener(max_delay, *nodes[myNodeName])
     listener.start()
     print "=== Listener Initialized ==="
 
@@ -102,8 +106,8 @@ if __name__ == "__main__":
     # create and start senders for this node
     senders = []
     for nodeName in nodes:
-        if(nodeName != myNodeName):
-            sender = Sender(max_delay, nodeName, *nodes[nodeName])
+        if(nodeName != myNodeName):                                    # host, port
+            sender = Sender(max_delay, myNodeName, nodeName, *nodes[nodeName])
             senders.append(sender)
             sender.start()
 
@@ -114,9 +118,9 @@ if __name__ == "__main__":
     # start by reading messages in the input file
     """for line in input_file:
         message_data = line.split()
-        if (message_data[0] == "send"):
+        if (str(message_data[0]).lower() == "send"):
             for sender in senders:
-                if message_data[2] == sender.name:
+                if message_data[2] == sender.dest_name:
                     sender.message_queue.put((message_data[1], message_data[2]))
         time.sleep(0.05)"""
 
@@ -124,9 +128,9 @@ if __name__ == "__main__":
     while(1):
         message = raw_input()
         message_data = message.split()
-        if (message_data[0] == "send"):
+        if (str(message_data[0]).lower() == "send"):
             for sender in senders:
-                if message_data[2] == sender.name:
+                if message_data[2] == sender.dest_name:
                     sender.message_queue.put((message_data[1], message_data[2]))
         
 
