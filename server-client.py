@@ -40,6 +40,7 @@ class Listener():
                 data = received.split()
                 print "Received \"" + data[1] + "\" from " + data[0] + " max delay is " + str(self.max_delay) + " s, system time is " + st
 
+
 class Sender():
     """
     Class to open a connection to another node's Listener and send messages
@@ -80,10 +81,11 @@ class Sender():
         sock.sendto(self.name + " " + message, (self.host, self.port))
 
 
-# usage: server-client.py conf.txt A
+# usage: server-client.py conf.txt A input.txt
 if __name__ == "__main__":
     myNodeName = sys.argv[2]
     config_file = open(sys.argv[1],'r')
+    input_file = open(sys.argv[3], 'r')
     delay_info = config_file.readline()
     max_delay = int(delay_info)
     nodes = {}
@@ -113,11 +115,25 @@ if __name__ == "__main__":
 
     print "=== Senders Initialized ==="
 
+    raw_input("Press Enter to begin sending messages...")
+
+    # start by reading messages in the input file
+    for line in input_file:
+        message_data = line.split()
+        if (message_data[0] == "send"):
+            for sender in senders:
+                if message_data[2] == sender.name:
+                    sender.message_queue.put((message_data[1], message_data[2]))
+        time.sleep(0.05)
+
     # read commands from stdin until program is terminated
     while(1):
         message = raw_input()
         message_data = message.split()
-        for sender in senders:
-            if message_data[2] == sender.name:
-                sender.message_queue.put((message_data[1], message_data[2]))
+        if (message_data[0] == "send"):
+            for sender in senders:
+                if message_data[2] == sender.name:
+                    sender.message_queue.put((message_data[1], message_data[2]))
+        
+
 
