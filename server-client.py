@@ -10,9 +10,9 @@ import datetime
 import random
 import pickle
 
-waiting_for_response = {}
-responses_to_send = Queue.Queue()
-key_value_store = {}
+waiting_for_response = {} # maps a command to the responses it's received
+responses_to_send = {} # maps a node name to a queue of responses it needs to send
+key_value_store = {} # maps a key to a (value, src, timestamp)
 
 class Listener():
     """
@@ -69,37 +69,41 @@ class Listener():
                         command_key = message[1:]
                         if command_key in commands_waiting:
                             waiting_for_response[command_key].append("ACK")
-                        model = message[4]
-                        # check to see if command is completed!
-                        if model == 1:
-                            del waiting_for_response[command_key]
-                        if model == 2:
-                            del waiting_for_response[command_key]
-                        if model == 3:
-                            del waiting_for_response[command_key]
-                        if model == 4:
-                            # command complete after two ACKs
-                            if len(waiting_for_response[command_key]) >= 2:
+                            model = int(message[4])
+                            # check to see if command is completed!
+                            if model == 1:
                                 del waiting_for_response[command_key]
+                                print "command completed!"
+                            if model == 2:
+                                del waiting_for_response[command_key]
+                                print "command completed!"
+                            if model == 3:
+                                del waiting_for_response[command_key]
+                                print "command completed!"
+                            if model == 4:
+                                # command complete after two ACKs
+                                if len(waiting_for_response[command_key]) == 2:
+                                    del waiting_for_response[command_key]
+                                    print "command completed!"
                 elif message[0] == "send":
                     print "Received \"" + message[1] + "\" from " + message[3] + " max delay is " + str(self.max_delay) + " s, system time is " + st
                 elif message[0] == "insert":
                     # TODO: check for case where key already exists
                     key_value_store[message[1]] = (message[2], message[4], message[5])
-                    response = ("ACK",) + message[0:3]
-                    responses_to_send.put((message[4],response))
+                    print "inserted key = " + str(message[1]) + " value = " + message[2]
+                    response = ("ACK",) + message[0:4]
+                    responses_to_send[message[4]].put(response)
                 elif message[0] == "update":
                     # TODO: check for case where key doesn't exist
                     key_value_store[message[1]] = (message[2], message[4], message[5])
-                    response = ("ACK",) + message[0:3]
-                    responses_to_send.put((message[4],response))
+                    print "updated key = " + str(message[1]) + " value = " + message[2]
+                    response = ("ACK",) + message[0:4]
+                    responses_to_send[message[4]].put(response)
                 elif message[0] == "get":
                     # TODO: check for case where key doesn't exist
                     value = key_value_store[message[1]]
-                    response = ("ACK",) + message[0:2] + (value,)
-                    responses_to_send.put((message[3],response))
-
-
+                    response = ("ACK",) + message[0:3] + (value,)
+                    responses_to_send[message[3]].put(response)
 
 
 class Sender():
@@ -132,15 +136,28 @@ class Sender():
                 delay = random.random() * self.max_delay
                 ts = time.time()
                 st = datetime.datetime.fromtimestamp(ts).strftime('%Y-%m-%d %H:%M:%S')
+                if message[0] == "send":
+                    print "Sent \"" + message[1] + "\" to " + self.dest_name + ", system time is " + st
+                elif message[0] == "insert":
+                    key_value_store[message[1]] = message[2]
+                elif message[0] == "update":
+                    key_value_store[message[1]] = message[2]
+                elif message[0] == "get":
+                    # TODO: not sure what to do here
+                    print "local copy of key = " + str(message[1]) + " is value = " + str(key_value_store[message[1]])
 
-                print "Sent \"" + message + "\" to " + self.dest_name + ", system time is " + st
-                message = message + (self.src_name,)
+                message = message + (self.src_name, ts,)          
                 time.sleep(delay)
 
                 sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
                 sock.sendto(pickle.dumps(message), (self.host, self.port))
 
-# usage: server-client.py conf.txt A input.txt
+            if not responses_to_send[self.dest_name].empty():
+                response = responses_to_send[self.dest_name].get()
+                sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+                sock.sendto(pickle.dumps(response), (self.host, self.port))                
+
+# usage: server-client.py conf.txt nodeName
 if __name__ == "__main__":
     myNodeName = sys.argv[2]
     config_file = open(sys.argv[1],'r')
@@ -167,7 +184,8 @@ if __name__ == "__main__":
     # create and start senders for this node
     senders = []
     for nodeName in nodes:
-        if(nodeName != myNodeName):                                    # host, port
+        if(nodeName != myNodeName):
+            responses_to_send[nodeName] = Queue.Queue()
             sender = Sender(max_delay, myNodeName, nodeName, *nodes[nodeName])
             senders.append(sender)
             sender.start()
@@ -195,17 +213,17 @@ if __name__ == "__main__":
                     sender.message_queue.put(("send", message_data[1], message_data[2]))
         if (str(message_data[0]).lower() == "insert"):
             command_key = ("insert", message_data[1], message_data[2], message_data[3])
-            waiting_for_response[command_key] = None # wait for ACK on this command
+            waiting_for_response[command_key] = [] # wait for ACK on this command
             for sender in senders:
                 sender.message_queue.put(command_key)
-        if (str(message_data[0]).lower() == "update")):
+        if (str(message_data[0]).lower() == "update"):
             command_key = ("update", message_data[1], message_data[2], message_data[3])
-            waiting_for_response[command_key] = None # wait for ACK on this command
+            waiting_for_response[command_key] = [] # wait for ACK on this command
             for sender in senders:
                 sender.message_queue.put(command_key)
         if (str(message_data[0]).lower() == "get"):
             command_key = ("get", message_data[1], message_data[2])
-            waiting_for_response[command_key] = None
+            waiting_for_response[command_key] = []
             for sender in senders:
                 sender.message_queue.put(command_key)
 
