@@ -8,6 +8,11 @@ import Queue
 import time
 import datetime
 import random
+import pickle
+
+waiting_for_response = {}
+responses_to_send = Queue.Queue()
+key_value_store = {}
 
 class Listener():
     """
@@ -18,6 +23,7 @@ class Listener():
         self.host = host
         self.port = port
         self.max_delay = max_delay
+        self.message_queue = Queue.Queue()
 
     def start(self):
         listenerThread = threading.Thread(target=self.__listen)
@@ -38,8 +44,62 @@ class Listener():
             if received:
                 ts = time.time()
                 st = datetime.datetime.fromtimestamp(ts).strftime('%Y-%m-%d %H:%M:%S')
-                data = received.split()
-                print "Received \"" + data[1] + "\" from " + data[0] + " max delay is " + str(self.max_delay) + " s, system time is " + st
+                message = pickle.loads(received)
+
+                commands_waiting = waiting_for_response.keys()
+                if (message[0] == "ACK"):
+                    if (message[1] == "get"):
+                        if message[1:3] in commands_waiting:
+                            waiting_for_response[message[1:3]].append(message[3])
+                        model = message[4]
+                        if model == 1:
+                            print "key = " + str(message[2]) + " and value = " + str(message[3])
+                            del waiting_for_response[command_key]
+                        if model == 2:
+                            # this should never happen
+                            del waiting_for_response[command_key]
+                        if model == 3:
+                            print "key = " + str(message[2]) + " and value = " + str(message[3])
+                            del waiting_for_response[command_key]
+                        if model == 4:
+                            # if different values were received, the largest will be printed out
+                            print "key = " + str(message[2]) + " and value = " + str(max(waiting_for_response[command_key]))
+                            del waiting_for_response[command_key]
+                    else:
+                        command_key = message[1:]
+                        if command_key in commands_waiting:
+                            waiting_for_response[command_key].append("ACK")
+                        model = message[4]
+                        # check to see if command is completed!
+                        if model == 1:
+                            del waiting_for_response[command_key]
+                        if model == 2:
+                            del waiting_for_response[command_key]
+                        if model == 3:
+                            del waiting_for_response[command_key]
+                        if model == 4:
+                            # command complete after two ACKs
+                            if len(waiting_for_response[command_key]) >= 2:
+                                del waiting_for_response[command_key]
+                elif message[0] == "send":
+                    print "Received \"" + message[1] + "\" from " + message[3] + " max delay is " + str(self.max_delay) + " s, system time is " + st
+                elif message[0] == "insert":
+                    # TODO: check for case where key already exists
+                    key_value_store[message[1]] = (message[2], message[4], message[5])
+                    response = ("ACK",) + message[0:3]
+                    responses_to_send.put((message[4],response))
+                elif message[0] == "update":
+                    # TODO: check for case where key doesn't exist
+                    key_value_store[message[1]] = (message[2], message[4], message[5])
+                    response = ("ACK",) + message[0:3]
+                    responses_to_send.put((message[4],response))
+                elif message[0] == "get":
+                    # TODO: check for case where key doesn't exist
+                    value = key_value_store[message[1]]
+                    response = ("ACK",) + message[0:2] + (value,)
+                    responses_to_send.put((message[3],response))
+
+
 
 
 class Sender():
@@ -65,19 +125,20 @@ class Sender():
         print "server ready to send on port " + str(self.port)
 
         while (1):
-            if self.message_queue.empty():
+            if self.message_queue.empty(): # TODO: also check global response queue here
                 time.sleep(0.01)
             else:
-                message_data = self.message_queue.get()
+                message = self.message_queue.get()
                 delay = random.random() * self.max_delay
                 ts = time.time()
                 st = datetime.datetime.fromtimestamp(ts).strftime('%Y-%m-%d %H:%M:%S')
-                print "Sent \"" + message + "\" to " + self.dest_name + ", system time is " + st
 
+                print "Sent \"" + message + "\" to " + self.dest_name + ", system time is " + st
+                message = message + (self.src_name,)
                 time.sleep(delay)
 
                 sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-                sock.sendto(self.src_name + " " + message, (self.host, self.port))
+                sock.sendto(pickle.dumps(message), (self.host, self.port))
 
 # usage: server-client.py conf.txt A input.txt
 if __name__ == "__main__":
@@ -131,7 +192,24 @@ if __name__ == "__main__":
         if (str(message_data[0]).lower() == "send"):
             for sender in senders:
                 if message_data[2] == sender.dest_name:
-                    sender.message_queue.put((message_data[1], message_data[2]))
+                    sender.message_queue.put(("send", message_data[1], message_data[2]))
+        if (str(message_data[0]).lower() == "insert"):
+            command_key = ("insert", message_data[1], message_data[2], message_data[3])
+            waiting_for_response[command_key] = None # wait for ACK on this command
+            for sender in senders:
+                sender.message_queue.put(command_key)
+        if (str(message_data[0]).lower() == "update")):
+            command_key = ("update", message_data[1], message_data[2], message_data[3])
+            waiting_for_response[command_key] = None # wait for ACK on this command
+            for sender in senders:
+                sender.message_queue.put(command_key)
+        if (str(message_data[0]).lower() == "get"):
+            command_key = ("get", message_data[1], message_data[2])
+            waiting_for_response[command_key] = None
+            for sender in senders:
+                sender.message_queue.put(command_key)
+
+
         
 
 
