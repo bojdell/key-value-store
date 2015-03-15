@@ -10,9 +10,15 @@ import datetime
 import random
 import pickle
 
+CENTRAL_SERVER_NAME = "CENTRAL"
+
+myNodeName = ""
+
 waiting_for_response = {} # maps a command to the responses it's received
 responses_to_send = {} # maps a node name to a queue of responses it needs to send
 key_value_store = {} # maps a key to a (value, src, timestamp)
+
+
 
 class Listener():
     """
@@ -167,8 +173,11 @@ if __name__ == "__main__":
     nodes = {}
 
     for line in config_file:
-        node_info = line.split()
-        nodes[node_info[2]] = (node_info[0], int(node_info[1]))
+        # parse data from line in file
+        host, port, nodeName = line.split()
+
+        # store node in dictionary keyed by node name
+        nodes[nodeName] = (host, int(port))
 
     socket.setdefaulttimeout(None)
 
