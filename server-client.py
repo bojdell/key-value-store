@@ -13,37 +13,30 @@ import pickle
 CENTRAL_SERVER_NAME = "CENTRAL"
 
 myNodeName = ""
+currentCommand = ""
+acksRemaining = 0
 
 waiting_for_response = {} # maps a command to the responses it's received
 responses_to_send = {} # maps a node name to a queue of responses it needs to send
 key_value_store = {} # maps a key to a (value, src, timestamp)
 
-class Message():
+# class to store a command i.e. "insert <key> <value> <model>"
+# converts parameters from strings to relevant data types
+class Command():
+    def __init__(self, operation, key, value, model):
+        self.operation = operation.lower()
+        self.key = int(key)
+        self.value = int(value)
+        self.model = int(model)
 
-    def __init__(self, command, key, value, model):
+# wrapper class for Command sent on network i.e. a Command with a timestamp, source node, is ACK, etc.
+class Message():
+    def __init__(self, command, message):
         self.command = command
-        self.key = key
-        self.value = value
-        self.model = model
-        self.source = None
+        self.source = myNodeName
         self.time_sent = None
         self.ACK = False
-        self.message = None
-
-    def set_timestamp(self, time_sent):
-        self.time_sent = time_sent 
-
-    def set_message(self, message):
         self.message = message
-
-    def set_source(self, source):
-        self.source = source
-
-    def set_ACK(self):
-        self.ACK = True
-
-    def set_value(self, value):
-        self.value = value
 
 class Listener():
     """
@@ -157,7 +150,7 @@ class CentralListener(Listener):
                 # if ack, check if it applies to current command, else ignore
 
                 # if normal command, place in message queue for each sender
-                
+
                 pass
 
 
@@ -232,6 +225,16 @@ class CentralSender(Sender):
                 sock.sendto(pickle.dumps(message), (self.host, self.port))
                 sock.close()
 
+def acksNeeded(model):
+    if model == 1:
+        return 4
+    elif model == 2:
+        return 4
+    elif model == 3:
+        return 1
+    elif model == 4:
+        return 2
+
 # usage: server-client.py conf.txt nodeName
 if __name__ == "__main__":
     myNodeName = sys.argv[2]
@@ -251,8 +254,12 @@ if __name__ == "__main__":
     socket.setdefaulttimeout(None)
 
     # create and start Listener for this node
-    listener = Listener(max_delay, *nodes[myNodeName])
+    if myNodeName == CENTRAL_SERVER_NAME:
+        listener = CentralListener(max_delay, *nodes[myNodeName])
+    else:
+        listener = Listener(max_delay, *nodes[myNodeName])
     listener.start()
+
     print "=== Listener Initialized ==="
 
     # wait for other nodes to be started
@@ -263,8 +270,14 @@ if __name__ == "__main__":
     senders = []
     for nodeName in nodes:
         if(nodeName != myNodeName):
+            # ??
             responses_to_send[nodeName] = Queue.Queue()
-            sender = Sender(max_delay, myNodeName, nodeName, *nodes[nodeName])
+
+            # create a single sender and start it
+            if myNodeName == CENTRAL_SERVER_NAME:
+                sender = CentralSender(max_delay, myNodeName, nodeName, *nodes[nodeName])
+            else:
+                sender = Sender(max_delay, myNodeName, nodeName, *nodes[nodeName])
             senders.append(sender)
             sender.start()
 
@@ -283,9 +296,50 @@ if __name__ == "__main__":
 
     # read commands from stdin until program is terminated
     while(1):
-        message = raw_input()
-        message_data = message.split()
-        if (str(message_data[0]).lower() == "send"):
+        # read in command string i.e. "insert <key> <value> <model>"
+        command_string = raw_input()
+
+        # parse string
+        command_data = command_string.split()
+        operation = command_data[0]
+
+        # if the operation is "send" (aka "send hi B"), build a Message object and place in sender's queue
+        if operation == "send":
+            # parse other params from command data
+            dest_node, send_string = command[1:2]
+
+            # find destination node
+            for sender in senders:
+                if dest_node == sender.dest_name:
+                    # build Message object
+                    message = Message(None, send_string)
+
+                    # place Message in sender's queue
+                    sender.message_queue.put(message)
+
+        # else, this must be a key-value store operation
+        else:
+            # build a Command object from the command string (class converts string params to relevant data types)
+            currentCommand = Command(*command_string.split())
+
+            # build wrapper Message object
+            message = Message(currentCommand, None)
+
+            # get number of acks needed
+            acksRemaining = acksNeeded(command.model)
+
+            # place Message in queue of each sender
+            for sender in senders:
+                sender.message_queue.put(message)
+
+            # wait for number of acks to be reached
+            while acksRemaining > 0:
+                time.sleep(0.01)
+
+            # return to outer while loop
+
+
+        if (command.operation == "send"):
             for sender in senders:
                 if message_data[2] == sender.dest_name:
                     command = Message("send", None, None, None)
