@@ -336,33 +336,41 @@ if __name__ == "__main__":
 
         if (str(message_data[0]).lower() == "insert"):
             message = Message("insert", message_data[1], message_data[2], message_data[3])
-            waiting_for_response[(message.command, message.key, message.value, message.model)] = [] # wait for ACK on this command
-            key_value_store[message.key] = (message.value, myNodeName, st)
+            message_keys = key_value_store.keys()
 
-            if int(message.model) == 1:
-                central_sender.message_queue.put(message) # just send to central server
-            elif int(message.model) == 2:
-                central_sender.message_queue.put(message) # just send to central server
-            elif int(message.model) == 3 or int(message.model) == 4:
-                # send to all neighbor nodes
-                for sender in senders:
-                    if sender.dest_name != myNodeName:
-                        sender.message_queue.put(message)
+            if message.key in message_keys:
+                print "The key you requested already exists."
+            else:
+                waiting_for_response[(message.command, message.key, message.value, message.model)] = [] # wait for ACK on this command
+                key_value_store[message.key] = (message.value, myNodeName, st)
+                if int(message.model) == 1:
+                    central_sender.message_queue.put(message) # just send to central server
+                elif int(message.model) == 2:
+                    central_sender.message_queue.put(message) # just send to central server
+                elif int(message.model) == 3 or int(message.model) == 4:
+                    # send to all neighbor nodes
+                    for sender in senders:
+                        if sender.dest_name != myNodeName:
+                            sender.message_queue.put(message)
 
         if (str(message_data[0]).lower() == "update"):
             message = Message("update", message_data[1], message_data[2], message_data[3])
-            waiting_for_response[(message.command, message.key, message.value, message.model)] = [] # wait for ACK on this command
-
-            key_value_store[message.key] = (message.value, myNodeName, st)
-            if int(message.model) == 1:
-                central_sender.message_queue.put(message) # just send to central server
-            elif int(message.model) == 2:
-                central_sender.message_queue.put(message) # just send to central server
-            elif int(message.model) == 3 or int(message.model) == 4:
-                # send to all neighbor nodes
-                for sender in senders:
-                    if sender.dest_name != myNodeName:
-                        sender.message_queue.put(message)        
+            
+            message_keys = key_value_store.keys()
+            if message.key in message_keys:
+                waiting_for_response[(message.command, message.key, message.value, message.model)] = [] # wait for ACK on this command
+                key_value_store[message.key] = (message.value, myNodeName, st)
+                if int(message.model) == 1:
+                    central_sender.message_queue.put(message) # just send to central server
+                elif int(message.model) == 2:
+                    central_sender.message_queue.put(message) # just send to central server
+                elif int(message.model) == 3 or int(message.model) == 4:
+                    # send to all neighbor nodes
+                    for sender in senders:
+                        if sender.dest_name != myNodeName:
+                            sender.message_queue.put(message)
+            else:
+                print "The key you requested does not exist."
 
         if (str(message_data[0]).lower() == "get"):
             message = Message("get", message_data[1], None, message_data[2])
