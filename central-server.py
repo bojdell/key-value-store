@@ -52,7 +52,6 @@ class CentralListener():
 			if received:
 				self.process_received(received)
 
-
 	def process_received(self, received):
 		message = pickle.loads(received)
 		if message.ACK:
@@ -63,14 +62,14 @@ class CentralListener():
 				waiting_for_response[command_key] = []
 				for node in nodeNames:
 					if node != message.source:
-						messages_to_send[nodeName].put(message)
+						messages_to_send[node].put(message)
 
 			elif message.command == "insert" or message.command == "update":
 				command_key = (message.command, message. key, message.value, message.model, message.source)
 				waiting_for_response[command_key] = []
 				for node in nodeNames:
 					if node != message.source:
-						messages_to_send[nodeName].put(message)
+						messages_to_send[node].put(message)
 
 	def process_ACK(self, message):
 		commands_waiting = waiting_for_response.keys()

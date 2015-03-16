@@ -98,22 +98,22 @@ class Listener():
             command_key = (message.command, message.key, message.model)
             if command_key in commands_waiting: # TODO: fix this
                 waiting_for_response[command_key].append(message.value)
-            if int(message.model) == 1:
-                print "get: key = " + str(message.key) + " and value = " + str(message.value)
-                del waiting_for_response[command_key]
-            if int(message.model) == 2:
-                # this should never happen
-                print "process_received: Should not receive an ACK on get for sequential consistency!"
-                del waiting_for_response[command_key]
-            if int(message.model) == 3:
-                if len(waiting_for_response[command_key]) == 2:
-                    print "get: key = " + str(message[2]) + " and value = " + str(message[3])
+                if int(message.model) == 1:
+                    print "get: key = " + str(message.key) + " and value = " + str(message.value)
                     del waiting_for_response[command_key]
-            if int(message.model) == 4:
-                # if different values were received, the largest will be printed out
-                if len(waiting_for_response[command_key]) == 3:
-                    print "get: key = " + str(message[2]) + " and value = " + str(max(waiting_for_response[command_key]))
+                if int(message.model) == 2:
+                    # this should never happen
+                    print "process_received: Should not receive an ACK on get for sequential consistency!"
                     del waiting_for_response[command_key]
+                if int(message.model) == 3:
+                    if len(waiting_for_response[command_key]) == 2:
+                        print "get: key = " + str(message.key) + " and value = " + str(message.value)
+                        del waiting_for_response[command_key]
+                if int(message.model) == 4:
+                    # if different values were received, the largest will be printed out
+                    if len(waiting_for_response[command_key]) == 3:
+                        print "get: key = " + str(message.key) + " and value = " + str(max(waiting_for_response[command_key]))
+                        del waiting_for_response[command_key]
         else:
             command_key = (message.command, message.key, message.value, message.model)
             if command_key in commands_waiting:
@@ -364,12 +364,13 @@ if __name__ == "__main__":
             if int(message.model) == 1:
                 central_sender.message_queue.put(message)
             elif int(message.model) == 2:
-                print "get: key = " + str(message.key) + " value = " + str(key_value_store[message.key])
+                value = key_value_store[message.key]
+                print "get: key = " + str(message.key) + " value = " + str(value[0])
             elif int(message.model) == 3 or int(message.model) == 4:
-                waiting_for_response[message].append(key_value_store[message.key])
+                waiting_for_response[(message.command, message.key, message.model)].append(key_value_store[message.key])
                 for sender in senders:
                     # send to all neighbor nodes
-                    sender.message_queue.put(command)
+                    sender.message_queue.put(message)
               
 
 
