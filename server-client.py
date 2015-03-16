@@ -166,10 +166,14 @@ class CentralListener(Listener):
                 message.ACK = True
                 responses_to_send[CENTRAL_SERVER_NAME].put(message)
 
-            elif message.command == "insert" or message.command == "update":
+            elif message.command == "insert":
                 message.ACK = True
+                key_value_store[message.key] = (message.value, message.source, message.time_sent)
                 responses_to_send[CENTRAL_SERVER_NAME].put(message)
-
+            elif message.command == "update":
+                message.ACK = True
+                key_value_store[message.key] = (message.value, message.source, message.time_sent)
+                responses_to_send[CENTRAL_SERVER_NAME].put(message)
             else:
                 print "CentralListener: invalid command"
 
@@ -320,6 +324,9 @@ if __name__ == "__main__":
         message = raw_input()
         message_data = message.split()
 
+        ts = time.time()
+        st = datetime.datetime.fromtimestamp(ts).strftime('%Y-%m-%d %H:%M:%S')
+
         if (str(message_data[0]).lower() == "send"):
             for sender in senders:
                 if message_data[2] == sender.dest_name:
@@ -330,7 +337,7 @@ if __name__ == "__main__":
         if (str(message_data[0]).lower() == "insert"):
             message = Message("insert", message_data[1], message_data[2], message_data[3])
             waiting_for_response[(message.command, message.key, message.value, message.model)] = [] # wait for ACK on this command
-            key_value_store[message.key] = message.value
+            key_value_store[message.key] = (message.value, myNodeName, st)
 
             if int(message.model) == 1:
                 central_sender.message_queue.put(message) # just send to central server
@@ -346,7 +353,7 @@ if __name__ == "__main__":
             message = Message("update", message_data[1], message_data[2], message_data[3])
             waiting_for_response[(message.command, message.key, message.value, message.model)] = [] # wait for ACK on this command
 
-            key_value_store[message.key] = message.value
+            key_value_store[message.key] = (message.value, myNodeName, st)
             if int(message.model) == 1:
                 central_sender.message_queue.put(message) # just send to central server
             elif int(message.model) == 2:
@@ -365,9 +372,10 @@ if __name__ == "__main__":
                 central_sender.message_queue.put(message)
             elif int(message.model) == 2:
                 value = key_value_store[message.key]
-                print "get: key = " + str(message.key) + " value = " + str(value[0])
+                print "get: key = " + str(message.key) + " and value = " + str(value[0])
             elif int(message.model) == 3 or int(message.model) == 4:
-                waiting_for_response[(message.command, message.key, message.model)].append(key_value_store[message.key])
+                value = key_value_store[message.key]
+                waiting_for_response[(message.command, message.key, message.model)].append(value[0])
                 for sender in senders:
                     # send to all neighbor nodes
                     sender.message_queue.put(message)
