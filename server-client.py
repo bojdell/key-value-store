@@ -137,6 +137,29 @@ class Listener():
                     message.set_value(value[0])
                     responses_to_send[message.source].put(message)
 
+class CentralListener(Listener):
+    """
+    Subclass of Listener to operate at Central Server to listen for all incoming messages to this node
+    """
+
+    def __listen(self):
+        # Create a listener that will receive all incoming messages to this node
+        sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        sock.settimeout(None)
+        sock.bind((self.host, self.port))
+
+        while(1):
+            # Receive data from the server
+            received, addr = sock.recvfrom(1024)
+            time.sleep(0.01)
+            if received:
+                # if ack, check if it applies to current command, else ignore
+
+                # if normal command, place in message queue for each sender
+                
+                pass
+
 
 class Sender():
     """
@@ -189,6 +212,25 @@ class Sender():
                 response = responses_to_send[self.dest_name].get()
                 sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
                 sock.sendto(pickle.dumps(response), (self.host, self.port))                
+
+
+class CentralSender(Sender):
+    """
+    Subclass of Sender to operate at Central Server to send outbound messages
+    """
+
+    def __send(self):
+        time.sleep(0.01)
+        print "Central Server ready to send on port " + str(self.port)
+
+        while (1):
+            if self.message_queue.empty(): # TODO: also check global response queue here
+                time.sleep(0.01)
+            else:
+                message = self.message_queue.get()
+                sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+                sock.sendto(pickle.dumps(message), (self.host, self.port))
+                sock.close()
 
 # usage: server-client.py conf.txt nodeName
 if __name__ == "__main__":
