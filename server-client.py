@@ -339,28 +339,28 @@ if __name__ == "__main__":
             # return to outer while loop
 
 
-        if (command.operation == "send"):
-            for sender in senders:
-                if message_data[2] == sender.dest_name:
-                    command = Message("send", None, None, None)
-                    command.set_message(message_data[1])
-                    sender.message_queue(command)
-                    #sender.message_queue.put(("send", message_data[1], message_data[2]))
-        if (str(message_data[0]).lower() == "insert"):
-            message = Message("insert", message_data[1], message_data[2], message_data[3])
-            waiting_for_response[(message.command, message.key, message.value, message.model)] = [] # wait for ACK on this command
-            for sender in senders:
-                sender.message_queue.put(command)
-        if (str(message_data[0]).lower() == "update"):
-            message = Message("update", message_data[1], message_data[2], message_data[3])
-            waiting_for_response[(message.command, message.key, message.value, message.model)] = [] # wait for ACK on this command
-            for sender in senders:
-                sender.message_queue.put(command)
-        if (str(message_data[0]).lower() == "get"):
-            message = Message("get", message_data[1], None, message_data[2])
-            waiting_for_response[(message.command, message.key, message.model)] = []
-            for sender in senders:
-                sender.message_queue.put(command)
+        # if (command.operation == "send"):
+        #     for sender in senders:
+        #         if message_data[2] == sender.dest_name:
+        #             command = Message("send", None, None, None)
+        #             command.set_message(message_data[1])
+        #             sender.message_queue(command)
+        #             #sender.message_queue.put(("send", message_data[1], message_data[2]))
+        # if (str(message_data[0]).lower() == "insert"):
+        #     message = Message("insert", message_data[1], message_data[2], message_data[3])
+        #     waiting_for_response[(message.command, message.key, message.value, message.model)] = [] # wait for ACK on this command
+        #     for sender in senders:
+        #         sender.message_queue.put(command)
+        # if (str(message_data[0]).lower() == "update"):
+        #     message = Message("update", message_data[1], message_data[2], message_data[3])
+        #     waiting_for_response[(message.command, message.key, message.value, message.model)] = [] # wait for ACK on this command
+        #     for sender in senders:
+        #         sender.message_queue.put(command)
+        # if (str(message_data[0]).lower() == "get"):
+        #     message = Message("get", message_data[1], None, message_data[2])
+        #     waiting_for_response[(message.command, message.key, message.model)] = []
+        #     for sender in senders:
+        #         sender.message_queue.put(command)
 
 
         
