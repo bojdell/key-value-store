@@ -160,6 +160,7 @@ class Listener():
             # if this ack is for our current command, process it. else, ignore it
             if command_key == currentCommand:
                 acksReceived.append(message.value)
+                #print "received an ACK"
                 #print "ACK " + str(len(acksReceived)) + " received with value " + message.value
         elif (message.command == "search"):
             command_key = (message.command, message.key)
@@ -275,9 +276,6 @@ class CentralSender(Sender):
 # inserts a value into the key value store, with overwrites
 def insertValue(message):
 
-    # insert value to key-value store
-    
-
     # if we are using linearizability or seq. consistency, send this command to the central server
     if message.model == 1 or message.model == 2:
         central_sender.message_queue.put(message)
@@ -391,9 +389,14 @@ if __name__ == "__main__":
                 if message.model == 1:
                     central_sender.message_queue.put(message)
 
+                    while len(acksReceived) < 1:
+                        time.sleep(0.05)
+                    print "get returned key = " + str(message.key) + " value = " + str(acksReceived[0])
+
                 # if seq. consistency, can return local value
                 elif message.model == 2:
                     value = key_value_store[message.key]
+                    print "get returned key = " + str(message.key) + " value = " + str(value[0])
 
                 # else, we need to perform operation and wait for acks
                 elif message.model == 3 or message.model == 4:
@@ -413,7 +416,7 @@ if __name__ == "__main__":
                         time.sleep(0.01)
 
                     # once we have enough acks, print out value and proceed to read in a new command
-                    print "get: key = " + str(message.key) + " and value = " + str(min(acksReceived))
+                    print "get returned key = " + str(message.key) + " value = " + str(min(acksReceived))
                     currentCommand = None
 
         elif (operation == "delete"):

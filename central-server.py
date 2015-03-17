@@ -79,21 +79,20 @@ class CentralListener():
 			if command_key in commands_waiting:
 				waiting_for_response[command_key].append(message.value)
 
-			if int(message.model) == 1:
+			if message.model == 1:
 				if len(waiting_for_response[command_key]) == 3: 
 					# we've received all responses
 					message.value = max(waiting_for_response[command_key])
 					message.ACK = True
 					messages_to_send[message.source].put(message)
-				else:
-					print "invalid model"
+					print "sending ACK back to source"
 		else:
 			command_key = (message.command, message.key, message.value, message.model, message.source)
 
 			if command_key in commands_waiting:
 				waiting_for_response[command_key].append("ACK")
 
-			if int(message.model) == 1 or int(message.model) == 2:
+			if message.model == 1 or message.model == 2:
 				if len(waiting_for_response[command_key]) == 3:
 					# we've received all responses
 					message.ACK = True
