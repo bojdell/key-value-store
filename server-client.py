@@ -289,9 +289,6 @@ def insertValue(message):
         numAcksNeeded = 1
         central_sender.message_queue.put(message)
 
-        while len(acksReceived) < 1:
-            time.sleep(0.1)
-        key_value_store[message.key] = (message.value, myNodeName, st)
     # else, we need to wait for acks
     elif message.model == 3 or message.model == 4:
         numAcksNeeded = message.model - 2
