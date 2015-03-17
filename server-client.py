@@ -301,46 +301,40 @@ class CentralSender(Sender):
 
 # inserts a value into the key value store, with overwrites
 def insertValue(message):
-	# add timestamp to message
-	message.time_sent = timestamp()
+    # add timestamp to message
+    message.time_sent = timestamp()
 
-	# if we are using linearizability or seq. consistency, send this command to the central server
-	if message.model == 1 or message.model == 2:
-		numAcksNeeded = 1
-		central_sender.message_queue.put(message)
+    # if we are using linearizability or seq. consistency, send this command to the central server
+    if message.model == 1 or message.model == 2:
+        numAcksNeeded = 1
 
-		# wait for ACK from central server
-		while len(acksReceived) < 1:
-			time.sleep(0.1)
-		# once ACK has been received, insert local copy
-		#key_value_store[message.key] = (message.value, myNodeName, st)
+        # send command to central server
+        central_sender.message_queue.put(message)
 
-	# else, we need to wait for 1 or 2 ACKs from neighbors
-	elif message.model == 3 or message.model == 4:
-		numAcksNeeded = message.model - 2
+    # else, we need to wait for 1 or 2 ACKs from neighbors
+    elif message.model == 3 or message.model == 4:
+        numAcksNeeded = message.model - 2
 
-		# insert/update copy locally
-		key_value_store[message.key] = (message.value, myNodeName, message.time_sent)
+        # insert/update copy locally
+        key_value_store[message.key] = (message.value, myNodeName, message.time_sent)
 
-		# send command to all neighbor nodes
-		for sender in senders:
-			if sender.dest_name != myNodeName:
-				sender.message_queue.put(message)
+        # send command to all neighbor nodes
+        for sender in senders:
+            if sender.dest_name != myNodeName:
+                sender.message_queue.put(message)
 
-		# wait until enough ACKs received
-		while len(acksReceived) < numAcksNeeded:
-			time.sleep(0.05)
+    # wait until enough ACKs received
+    while len(acksReceived) < numAcksNeeded:
+        time.sleep(0.05)
 
-	# once we have enough acks, print result and proceed to read in a new command
-	if message.command == "insert":
-		print "inserted key = " + str(message.key) + " value = " + str(message.value)
-	else:
-		print "updated key = " + str(message.key) + " value = " + str(message.value)
-	currentCommand = None
+    # once we have enough acks, print result and proceed to read in a new command
+    if message.command == "insert":
+        print "inserted key = " + str(message.key) + " value = " + str(message.value)
+    else:
+        print "updated key = " + str(message.key) + " value = " + str(message.value)
+    currentCommand = None
 
-
-
-# usage: server-client.py conf.txt nodeName [input_file]
+# usage: server-client.py conf.txt nodeName
 if __name__ == "__main__":
 	myNodeName = sys.argv[2]
 	config_file = open(sys.argv[1],'r')
@@ -541,3 +535,4 @@ if __name__ == "__main__":
 				# else, this is an error
 				else:
 					print "The key you requested does not exist, key = " + str(message.key)
+

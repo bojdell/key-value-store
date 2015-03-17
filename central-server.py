@@ -61,14 +61,12 @@ class CentralListener():
 				command_key = (message.command, message.key, message.model, message.source)
 				waiting_for_response[command_key] = []
 				for node in nodeNames:
-					#if node != message.source:
 					messages_to_send[node].put(message)
 
 			elif message.command == "insert" or message.command == "update":
 				command_key = (message.command, message. key, message.value, message.model, message.source)
 				waiting_for_response[command_key] = []
 				for node in nodeNames:
-					#if node != message.source:
 					messages_to_send[node].put(message)
 
 	def process_ACK(self, message):
