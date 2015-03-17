@@ -22,262 +22,282 @@ key_value_store = {} # maps a key to a (value, src, timestamp)
 
 class Message():
 
-    def __init__(self, command, key, value, model):
-        self.command = str(command).lower() if command else None
-        self.key = int(key) if key else None
-        self.value = int(value) if value else None
-        self.model = int(model) if model else None
-        self.source = None
-        self.time_sent = None
-        self.ACK = False
-        self.message = None
+	def __init__(self, command, key, value, model):
+		self.command = str(command).lower() if command else None
+		self.key = int(key) if key else None
+		self.value = int(value) if value else None
+		self.model = int(model) if model else None
+		self.source = None
+		self.time_sent = None
+		self.ACK = False
+		self.message = None
 
-    def __str__(self):
-        result = ""
-        if self.command:
-            result += "command: " + self.command + " "
-        if self.key:
-            result += str(self.key) + " "
-        if self.value:
-            result += str(self.value) + " "
-        if self.model:
-            result += str(self.model) + " "
-        if self.source:
-            result += "from: " + self.source + " "
-        if self.time_sent:
-            result += "time_sent: " + str(self.time_sent) + " "
-        if self.ACK:
-            result += "ACK: " + str(self.ACK) + " "
-        if self.message:
-            result += "message: " + self.message + " "
-        return result.strip()
+	def __str__(self):
+		result = ""
+		if self.command:
+			result += "command: " + self.command + " "
+		if self.key:
+			result += str(self.key) + " "
+		if self.value:
+			result += str(self.value) + " "
+		if self.model:
+			result += str(self.model) + " "
+		if self.source:
+			result += "from: " + self.source + " "
+		if self.time_sent:
+			result += "time_sent: " + str(self.time_sent) + " "
+		if self.ACK:
+			result += "ACK: " + str(self.ACK) + " "
+		if self.message:
+			result += "message: " + self.message + " "
+		return result.strip()
 
 # returns a timestamp string
 def timestamp():
-    ts = time.time()
-    return datetime.datetime.fromtimestamp(ts).strftime('%Y-%m-%d %H:%M:%S')
+	ts = time.time()
+	return datetime.datetime.fromtimestamp(ts).strftime('%Y-%m-%d %H:%M:%S')
 
 class Listener():
-    """
-    Class to listen for all incoming messages to this node
-    """
+	"""
+	Class to listen for all incoming messages to this node
+	"""
 
-    def __init__(self, max_delay, host, port):
-        self.host = host
-        self.port = port
-        self.max_delay = max_delay
+	def __init__(self, max_delay, host, port):
+		self.host = host
+		self.port = port
+		self.max_delay = max_delay
 
-    def start(self):
-        listenerThread = threading.Thread(target=self.__listen)
-        listenerThread.setDaemon(True)
-        listenerThread.start()
+	def start(self):
+		listenerThread = threading.Thread(target=self.__listen)
+		listenerThread.setDaemon(True)
+		listenerThread.start()
 
-    def __listen(self):
-        # Create a listener that will receive all incoming messages to this node
-        sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        sock.settimeout(None)
-        sock.bind((self.host, self.port))
+	def __listen(self):
+		# Create a listener that will receive all incoming messages to this node
+		sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+		sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+		sock.settimeout(None)
+		sock.bind((self.host, self.port))
 
-        while(1):
-            # Receive data from the server
-            received, addr = sock.recvfrom(1024)
-            time.sleep(0.01)
-            if received:
-                self.process_received(received)
+		while(1):
+			# Receive data from the server
+			received, addr = sock.recvfrom(1024)
+			time.sleep(0.01)
+			if received:
+				self.process_received(received)
 
 
-    def process_received(self, received):
-        st = timestamp()
-        message = pickle.loads(received)
+	def process_received(self, received):
+		st = timestamp()
+		message = pickle.loads(received)
 
-        # print "message: " + str(message)    # DEBUG
-        
-        # if this response is an ack, process it
-        if message.ACK:
-            self.process_ACK(message)
+		# print "message: " + str(message)    # DEBUG
+		
+		# if this response is an ack, process it
+		if message.ACK:
+			self.process_ACK(message)
 
-        # else, if it was a send command, simply print out the message
-        elif message.command == "send":
-            print "Received \"" + message.message + "\" from " + message.source + " max delay is " + str(self.max_delay) + " s, system time is " + st
+		# else, if it was a send command, simply print out the message
+		elif message.command == "send":
+			print "Received \"" + message.message + "\" from " + message.source + " max delay is " + str(self.max_delay) + " s, system time is " + st
 
-        elif message.command == "delete":
-            keys = key_value_store.keys()
-            if message.key in keys:
-                del key_value_store[message.key]
-            else:
-                print "This key doesn't exist, key = " + str(message.key)
+		# if it was a delete command, simply delete local copy
+		elif message.command == "delete":
+			keys = key_value_store.keys()
+			if message.key in keys:
+				del key_value_store[message.key]
+			else:
+				print "This key doesn't exist, key = " + str(message.key)
 
-        else:
-            # print "Received command \"" + str(message) + "\"" #DEBUG
+		# else, process the command
+		else:
+			# print "Received command \"" + str(message) + "\"" #DEBUG
 
-            keys = key_value_store.keys()
-            # parse and perform command
-            if message.command == "insert":
-                if message.key in keys:
-                    print "This key already exists, key = " + str(message.key)
-                else:
-                    key_value_store[message.key] = (message.value, message.source, message.time_sent)
-                    print "inserted key = " + str(message.key) + " value = " + str(message.value)
+			keys = key_value_store.keys()
+			# parse and perform command
+			if message.command == "insert":
+				# check if key already exists in local copy
+				if message.key in keys:
+					print "This key already exists, key = " + str(message.key)
+				else:
+					key_value_store[message.key] = (message.value, message.source, message.time_sent)
 
-            elif message.command == "update":
-                if message.key in keys:
-                    value = key_value_store[message.key]
-                    ts_curr = time.strptime(value[2], "%Y-%m-%d %H:%M:%S")
-                    ts_next = time.strptime(message.time_sent, "%Y-%m-%d %H:%M:%S")
-                    if ts_next > ts_curr:
-                        key_value_store[message.key] = (message.value, message.source, message.time_sent)
-                        print "updated key = " + str(message.key) + " value = " + str(message.value)
-                else:
-                    print "This key doesn't exist, key = " + str(message.key)
-            
-            elif message.command == "get":
-                # TODO: check for case where key doesn't exist
-                # add all data to message so can compare timestamp
-                data = key_value_store[message.key]
-                message.message = data
+			elif message.command == "update":
+				# check if key exists in local copy
+				if message.key in keys:
+					value = key_value_store[message.key]
 
-            elif message.command == "search":
-                message.value = myNodeName
-                if message.key in keys:
-                    message.message = "YES"
-                else:
-                    message.message = "NO"
+					# get currently stored timestamp and compared to time_sent of incoming update
+					ts_curr = time.strptime(value[2], "%Y-%m-%d %H:%M:%S")
+					ts_next = time.strptime(message.time_sent, "%Y-%m-%d %H:%M:%S")
 
-            # send ack
-            message.ACK = True
+					# only replace local copy if incoming timestamp is greater than current local timestamp
+					if ts_next > ts_curr:
+						key_value_store[message.key] = (message.value, message.source, message.time_sent)
+				else:
+					print "This key doesn't exist, key = " + str(message.key)
+			
+			elif message.command == "get":
+				# TODO: check for case where key doesn't exist
+				# add all data to message so can compare timestamp
+				data = key_value_store[message.key]
+				message.message = data
 
-            # place ack in proper response queue
-            if message.model == 1 or message.model == 2:
-                responses_to_send[CENTRAL_SERVER_NAME].put(message)
-            else:   
-                responses_to_send[message.source].put(message)
-            # print "sent message : " + str(message) + " to " + old_source    # DEBUG
+			elif message.command == "search":
+				message.value = myNodeName
+				if message.key in keys:
+					message.message = "YES"
+				else:
+					message.message = "NO"
 
-    def process_ACK(self, message):
-        # print "currentCommand: " + str(currentCommand)    # DEBUG
-        if (message.command == "get"):
-            command_key = (message.command, message.key, message.model)
-            # print "command_key: " + str(command_key)    # DEBUG
-            # print "acks received: " + str(acksReceived)    # DEBUG
-            # print "len of acks recvd " + str(len(acksReceived)) # DEBUG
+			# send ack
+			message.ACK = True
 
-            # if this ack is for our current command, process it. else, ignore it
-            if command_key == currentCommand:
-                # append the data stored in message field, so we can sort by timestamp
-                acksReceived.append(message.message)
+			# place ack in proper response queue
+			if message.model == 1 or message.model == 2:
+				responses_to_send[CENTRAL_SERVER_NAME].put(message)
+			else:   
+				responses_to_send[message.source].put(message)
+			# print "sent message : " + str(message) + " to " + old_source    # DEBUG
 
-                #print "ACK " + str(len(acksReceived)) + " received value = " + message.value
-        elif (message.command == "search"):
-            command_key = (message.command, message.key)
-            if command_key == currentCommand:
-                acksReceived.append("ACK")
-                if message.message == "YES":
-                    print message.value
-        else:
-            command_key = (message.command, message.key, message.value, message.model)
-            # print "command_key: " + str(command_key) # DEBUG
-            # print "acks received: " + str(acksReceived)    # DEBUG
-            # print "len of acks recvd " + str(len(acksReceived)) # DEBUG
-            
-            # if this ack is for our current command, process it. else, ignore it
-            if command_key == currentCommand:
-                acksReceived.append("ACK")
-                #print "ACK " + str(len(acksReceived)) + " received"
+	def process_ACK(self, message):
+		# print "currentCommand: " + str(currentCommand)    # DEBUG
+		if (message.command == "get"):
+			command_key = (message.command, message.key, message.model)
+			# print "command_key: " + str(command_key)    # DEBUG
+			# print "acks received: " + str(acksReceived)    # DEBUG
+			# print "len of acks recvd " + str(len(acksReceived)) # DEBUG
+
+			# if this ack is for our current command, process it. else, ignore it
+			if command_key == currentCommand:
+				# append the data stored in message field, so we can sort by timestamp
+				acksReceived.append(message.message)
+
+		# if search, 'YES' indicates key in neighbor's copy
+		# and 'NO' indicates key not in neighbor's copy
+		elif (message.command == "search"):
+			# if this ack is for our current command, process it. else, ignore it
+			command_key = (message.command, message.key)
+			if command_key == currentCommand:
+				acksReceived.append("ACK")
+				if message.message == "YES":
+					print message.value
+		else:
+			command_key = (message.command, message.key, message.value, message.model)
+			# print "command_key: " + str(command_key) # DEBUG
+			# print "acks received: " + str(acksReceived)    # DEBUG
+			# print "len of acks recvd " + str(len(acksReceived)) # DEBUG
+			
+			# if this ack is for our current command, process it. else, ignore it
+			if command_key == currentCommand:
+				acksReceived.append("ACK")
+				#print "ACK " + str(len(acksReceived)) + " received"
 
 class Sender():
-    """
-    Class to open a connection to another node's Listener and send messages
-    """
+	"""
+	Class to open a connection to another node's Listener and send messages
+	"""
 
-    def __init__(self, max_delay, src_name, dest_name, host, port):
-        self.src_name = src_name
-        self.dest_name = dest_name
-        self.host = host
-        self.port = port
-        self.max_delay = max_delay
-        self.message_queue = Queue.Queue()
+	def __init__(self, max_delay, src_name, dest_name, host, port):
+		self.src_name = src_name
+		self.dest_name = dest_name
+		self.host = host
+		self.port = port
+		self.max_delay = max_delay
+		self.message_queue = Queue.Queue()
 
-    def start(self):
-        senderThread = threading.Thread(target=self.__send)
-        senderThread.setDaemon(True)
-        senderThread.start()
+	def start(self):
+		senderThread = threading.Thread(target=self.__send)
+		senderThread.setDaemon(True)
+		senderThread.start()
 
-    def __send(self):
-        time.sleep(0.01)
-        print "server ready to send on port " + str(self.port)
+	def __send(self):
+		time.sleep(0.01)
+		print "server ready to send on port " + str(self.port)
 
-        while (1):
-            if self.message_queue.empty(): # TODO: also check global response queue here
-                time.sleep(0.01)
-            else:
-                # print "got message from message queue"    # DEBUG
-                message = self.message_queue.get()
-                self.execute_command(message)
+		while (1):
+			# check for messages to send
+			if self.message_queue.empty():
+				time.sleep(0.01)
+			else:
+				message = self.message_queue.get()
+				self.execute_command(message)
 
-            if not responses_to_send[self.dest_name].empty():
-                response = responses_to_send[self.dest_name].get()
-                if response.command == "search":
-                    pass
-                else:
-                    delay = random.random() * self.max_delay
-                    time.sleep(delay)
+			# check for responses to send
+			if not responses_to_send[self.dest_name].empty():
+				response = responses_to_send[self.dest_name].get()
+				# if search, don't delay - send instantly
+				if response.command == "search":
+					pass
+				else:
+					delay = random.random() * self.max_delay
+					time.sleep(delay)
 
-                sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-                sock.sendto(pickle.dumps(response), (self.host, self.port))
+				sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+				sock.sendto(pickle.dumps(response), (self.host, self.port))
 
-    def execute_command(self, message):
-        if message.command == "search":
-            pass
-        else:
-            delay = random.random() * self.max_delay
-            ts = time.time()
-            st = datetime.datetime.fromtimestamp(ts).strftime('%Y-%m-%d %H:%M:%S')
-            if message.message == "send":
-                print "Sent \"" + message.key + "\" to " + self.dest_name + ", system time is " + st
+	def execute_command(self, message):
+		# if search, don't delay - send instantly
+		if message.command == "search":
+			pass
+		else:
+			delay = random.random() * self.max_delay
+			ts = time.time()
+			st = datetime.datetime.fromtimestamp(ts).strftime('%Y-%m-%d %H:%M:%S')
+			if message.message == "send":
+				print "Sent \"" + message.key + "\" to " + self.dest_name + ", system time is " + st
 
-            message.time_sent = st
-            message.source = self.src_name       
-            time.sleep(delay)
+			# add timestamp and the source node
+			message.time_sent = st
+			message.source = self.src_name       
+			time.sleep(delay)
 
-        sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        sock.sendto(pickle.dumps(message), (self.host, self.port))      
+		sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+		sock.sendto(pickle.dumps(message), (self.host, self.port))      
 
 
 class CentralSender(Sender):
-    """
-    Subclass of Sender to send messages to a Central Server
-    """
+	"""
+	Subclass of Sender to send messages to a Central Server
+	"""
 
-    def __send(self):
-        time.sleep(0.01)
-        print "Central Server ready to send on port " + str(self.port)
+	def __send(self):
+		time.sleep(0.01)
+		print "Central Server ready to send on port " + str(self.port)
 
-        while (1):
+		while (1):
+			# check the queue for new messages to send
+			if self.message_queue.empty():
+				time.sleep(0.01)
+			else:
+				message = self.message_queue.get()
 
-            if self.message_queue.empty(): # TODO: also check global response queue here
-                time.sleep(0.01)
-            else:
-                message = self.message_queue.get()
+				# channel delay
+				delay = random.random() * self.max_delay
+				ts = time.time()
+				st = datetime.datetime.fromtimestamp(ts).strftime('%Y-%m-%d %H:%M:%S')
+				message.time_sent = st
+				message.source = self.src_name         
+				time.sleep(delay)
 
-                delay = random.random() * self.max_delay
-                ts = time.time()
-                st = datetime.datetime.fromtimestamp(ts).strftime('%Y-%m-%d %H:%M:%S')
-                message.time_sent = st
-                message.source = self.src_name         
-                time.sleep(delay)
+				# delay complete - send the message
+				sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+				sock.sendto(pickle.dumps(message), (self.host, self.port))
+				sock.close()
 
-                sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-                sock.sendto(pickle.dumps(message), (self.host, self.port))
-                sock.close()
+			# check global queue for responses (ACKs) that need to be sent
+			if responses_to_send[CENTRAL_SERVER_NAME].empty():
+				pass
+			else:
+				message = responses_to_send[CENTRAL_SERVER_NAME].get()
 
-            if responses_to_send[CENTRAL_SERVER_NAME].empty():
-                pass
-            else:
-                message = responses_to_send[CENTRAL_SERVER_NAME].get()
-                sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-                sock.sendto(pickle.dumps(message), (self.host, self.port))
-                sock.close()
+				# delay the ACK to the central server
+				delay = random.random() * self.max_delay
+				time.sleep(delay)
+				sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+				sock.sendto(pickle.dumps(message), (self.host, self.port))
+				sock.close()
+
 
 # inserts a value into the key value store, with overwrites
 def insertValue(message):
@@ -287,26 +307,25 @@ def insertValue(message):
     # if we are using linearizability or seq. consistency, send this command to the central server
     if message.model == 1 or message.model == 2:
         numAcksNeeded = 1
+
+        # send command to central server
         central_sender.message_queue.put(message)
 
-    # else, we need to wait for acks
+    # else, we need to wait for 1 or 2 ACKs from neighbors
     elif message.model == 3 or message.model == 4:
         numAcksNeeded = message.model - 2
+
+        # insert/update copy locally
         key_value_store[message.key] = (message.value, myNodeName, message.time_sent)
+
         # send command to all neighbor nodes
         for sender in senders:
             if sender.dest_name != myNodeName:
                 sender.message_queue.put(message)
 
-        # print "Sent command \"" + str(message) + "\", waiting for " + str(numAcksNeeded) + " acks" #DEBUG
-        # print "acks recvd " + str(acksReceived) #DEBUG
-        # print "len of acks recvd " + str(len(acksReceived)) #DEBUG
-
-        # wait to receive enough acks
-        while len(acksReceived) < numAcksNeeded:
-            # print "acks recvd " + str(acksReceived) #DEBUG
-            # print "len of acks recvd " + str(len(acksReceived)) #DEBUG
-            time.sleep(0.05)
+    # wait until enough ACKs received
+    while len(acksReceived) < numAcksNeeded:
+        time.sleep(0.05)
 
     # once we have enough acks, print result and proceed to read in a new command
     if message.command == "insert":
@@ -483,4 +502,3 @@ if __name__ == "__main__":
                 else:
                     print "The key you requested does not exist."
                   
-
