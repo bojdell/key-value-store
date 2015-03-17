@@ -387,6 +387,12 @@ if __name__ == "__main__":
                 for sender in senders:
                     # send to all neighbor nodes
                     sender.message_queue.put(message)
+
+        if (str(message_data[0]).lower() == "show-all"):
+            keys = key_value_store.keys()
+            for key in keys:
+                value = key_value_store[key]
+                print "key = " + str(key) + " value = " + str(value[0])
               
 
 
