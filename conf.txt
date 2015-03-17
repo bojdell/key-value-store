@@ -4,3 +4,4 @@ localhost 5000 A
 localhost 5001 B
 localhost 5002 C
 localhost 5003 D
+localhost 5004 CENTRAL

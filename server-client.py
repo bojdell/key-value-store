@@ -446,7 +446,7 @@ if __name__ == "__main__":
 						time.sleep(0.01)
 
 					# once we have enough acks, sort the responses by timestamp and perform inconsistency repair
-					latestData = sorted(acksReceived, key=itemgetter(2))[0]
+					latestData = sorted(acksReceived, key=itemgetter(2), reverse=True)[0]
 					key_value_store[message.key] = latestData
 
 					# print out value and proceed to read in a new command
