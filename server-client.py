@@ -118,7 +118,7 @@ class Listener():
 					print "This key already exists, key = " + str(message.key)
 				else:
 					key_value_store[message.key] = (message.value, message.source, message.time_sent)
-					print "inserted key = " + str(message.key) + " value = " + str(message.value)
+					#print "inserted key = " + str(message.key) + " value = " + str(message.value)
 
 			elif message.command == "update":
 				if message.key in keys:
@@ -127,7 +127,7 @@ class Listener():
 					ts_next = time.strptime(message.time_sent, "%Y-%m-%d %H:%M:%S")
 					if ts_next > ts_curr:
 						key_value_store[message.key] = (message.value, message.source, message.time_sent)
-						print "updated key = " + str(message.key) + " value = " + str(message.value)
+						#print "updated key = " + str(message.key) + " value = " + str(message.value)
 				else:
 					print "This key doesn't exist, key = " + str(message.key)
 			
@@ -312,11 +312,11 @@ def insertValue(message):
 			time.sleep(0.05)
 
 	# once we have enough acks, print result and proceed to read in a new command
-	if message.command == "insert":
+	"""if message.command == "insert":
 		print "inserted key = " + str(message.key) + " value = " + str(message.value)
 	else:
 		print "updated key = " + str(message.key) + " value = " + str(message.value)
-	currentCommand = None
+	currentCommand = None"""
 
 
 
@@ -379,8 +379,9 @@ if __name__ == "__main__":
 	while(1):
 		if input_file:
 			message = input_file.readline()
-			if input_file.readline() == "":
+			if message == "":
 				input_file = False
+				print "Done reading input file."
 				message = raw_input()
 			else:
 				print message
@@ -494,7 +495,7 @@ if __name__ == "__main__":
 
 				# if this key already exists, don't overwrite it
 				if message.key in message_keys:
-					print "The key you requested already exists. Use 'update' to change its value."
+					print "The key you requested already exists. Use 'update' to change its value. key = " + str(message.key)
 
 				# else, insert the new value
 				else:
@@ -509,4 +510,4 @@ if __name__ == "__main__":
 
 				# else, this is an error
 				else:
-					print "The key you requested does not exist."
+					print "The key you requested does not exist, key = " + str(message.key)
