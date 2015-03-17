@@ -82,7 +82,7 @@ class CentralListener():
 			if message.model == 1:
 				if len(waiting_for_response[command_key]) == 3: 
 					# we've received all responses
-					message.value = max(waiting_for_response[command_key])
+					message.value = min(waiting_for_response[command_key])
 					message.ACK = True
 					messages_to_send[message.source].put(message)
 					print "sending ACK back to source"
