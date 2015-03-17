@@ -278,11 +278,10 @@ class CentralSender(Sender):
 				pass
 			else:
 				message = responses_to_send[CENTRAL_SERVER_NAME].get()
-				if message.command == "search":
-					pass
-				else:
-					delay = random.random() * self.max_delay
-					time.sleep(delay)
+
+				# delay the ACK to the central server
+				delay = random.random() * self.max_delay
+				time.sleep(delay)
 				sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 				sock.sendto(pickle.dumps(message), (self.host, self.port))
 				sock.close()
