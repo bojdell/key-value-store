@@ -166,7 +166,8 @@ class Listener():
             if command_key == currentCommand:
                 # append the data stored in message field, so we can sort by timestamp
                 acksReceived.append(message.message)
-                #print "ACK " + str(len(acksReceived)) + " received with value " + message.value
+
+                #print "ACK " + str(len(acksReceived)) + " received value = " + message.value
         elif (message.command == "search"):
             command_key = (message.command, message.key)
             if command_key == currentCommand:
@@ -392,9 +393,14 @@ if __name__ == "__main__":
                 if message.model == 1:
                     central_sender.message_queue.put(message)
 
+                    while len(acksReceived) < 1:
+                        time.sleep(0.05)
+                    print "get returned key = " + str(message.key) + " value = " + str(acksReceived[0])
+
                 # if seq. consistency, can return local value
                 elif message.model == 2:
                     value = key_value_store[message.key]
+                    print "get returned key = " + str(message.key) + " value = " + str(value[0])
 
                 # else, we need to perform operation and wait for acks
                 elif message.model == 3 or message.model == 4:
