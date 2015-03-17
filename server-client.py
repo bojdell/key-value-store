@@ -98,7 +98,7 @@ class Listener():
 
         # else, we need to perform the command and send an ack
         else:
-            print "Received command \"" + str(message) + "\""
+            # print "Received command \"" + str(message) + "\"" #DEBUG
 
             # parse and perform command
             if message.command == "insert":
@@ -127,14 +127,18 @@ class Listener():
         if (message.command == "get"):
             command_key = (message.command, message.key, message.model)
             # print "command_key: " + str(command_key)    # DEBUG
+            # print "acks received: " + str(acksReceived)    # DEBUG
+            # print "len of acks recvd " + str(len(acksReceived)) # DEBUG
 
             # if this ack is for our current command, process it. else, ignore it
             if command_key == currentCommand:
                 acksReceived.append(message.value)
-                print "ACK " + str(len(acksReceived)) + " received with value " + message.value
+                print "ACK " + str(len(acksReceived)) + " received value = " + str(message.value)
         else:
             command_key = (message.command, message.key, message.value, message.model)
-            print "command_key: " + str(command_key)
+            # print "command_key: " + str(command_key) # DEBUG
+            # print "acks received: " + str(acksReceived)    # DEBUG
+            # print "len of acks recvd " + str(len(acksReceived)) # DEBUG
             
             # if this ack is for our current command, process it. else, ignore it
             if command_key == currentCommand:
@@ -287,13 +291,9 @@ class CentralSender(Sender):
 
 # inserts a value into the key value store, with overwrites
 def insertValue(message):
-    # set this as our current command and init acksReceived to be empty
-    currentCommand = (message.command, message.key, message.value, message.model)
-    acksReceived = []
 
     # insert value to key-value store
     key_value_store[message.key] = (message.value, myNodeName, st)
-    print "inserted key = " + str(message.key) + " value = " + str(message.value)
 
     # if we are using linearizability or seq. consistency, send this command to the central server
     if message.model == 1 or message.model == 2:
@@ -308,13 +308,21 @@ def insertValue(message):
             if sender.dest_name != myNodeName:
                 sender.message_queue.put(message)
 
-        print "Send command \"" + str(message) + "\", waiting for " + str(numAcksNeeded) + " acks"
+        # print "Sent command \"" + str(message) + "\", waiting for " + str(numAcksNeeded) + " acks" #DEBUG
+        # print "acks recvd " + str(acksReceived) #DEBUG
+        # print "len of acks recvd " + str(len(acksReceived)) #DEBUG
 
         # wait to receive enough acks
         while len(acksReceived) < numAcksNeeded:
-            time.sleep(0.1)
+            # print "acks recvd " + str(acksReceived) #DEBUG
+            # print "len of acks recvd " + str(len(acksReceived)) #DEBUG
+            time.sleep(0.05)
 
-        # once we have enough acks, proceed to read in a new command
+        # once we have enough acks, print result and proceed to read in a new command
+        if message.command == "insert":
+            print "inserted key = " + str(message.key) + " value = " + str(message.value)
+        else:
+            print "updated key = " + str(message.key) + " value = " + str(message.value)
         currentCommand = None
 
 # usage: server-client.py conf.txt nodeName
@@ -385,8 +393,10 @@ if __name__ == "__main__":
 
         elif (operation == "get"):
                 message = Message(operation, message_data[1], None, message_data[2])
-                currentCommand = (message.command, message.key, message.value, message.model)
+                currentCommand = (message.command, message.key, message.model)
                 acksReceived = []
+
+                # print "get command. currentCommand: " + str(currentCommand) #DEBUG
 
                 # if linearizability, send to central server
                 if message.model == 1:
@@ -395,11 +405,10 @@ if __name__ == "__main__":
                 # if seq. consistency, can return local value
                 elif message.model == 2:
                     value = key_value_store[message.key]
-                    print "get: key = " + str(message.key) + " and value = " + str(value[0])
 
                 # else, we need to perform operation and wait for acks
                 elif message.model == 3 or message.model == 4:
-                    numAcksNeeded = message.model - 2
+                    numAcksNeeded = message.model - 1
 
                     # perform get
                     value = key_value_store[message.key]
@@ -414,7 +423,8 @@ if __name__ == "__main__":
                     while len(acksReceived) < numAcksNeeded:
                         time.sleep(0.01)
 
-                    # once we have enough acks, proceed to read in a new command
+                    # once we have enough acks, print out value and proceed to read in a new command
+                    print "get: key = " + str(message.key) + " and value = " + str(min(acksReceived))
                     currentCommand = None
 
         else:
