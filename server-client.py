@@ -353,186 +353,204 @@ def insertValue(message):
 
 # usage: server-client.py conf.txt nodeName [input_file]
 if __name__ == "__main__":
-    myNodeName = sys.argv[2]
-    config_file = open(sys.argv[1],'r')
-    delay_info = config_file.readline()
-    max_delay = int(delay_info)
-    nodes = {}
+	myNodeName = sys.argv[2]
+	config_file = open(sys.argv[1],'r')
+	delay_info = config_file.readline()
+	max_delay = int(delay_info)
+	nodes = {}
+	input_file = None
 
-    if len(sys.argv) == 4:
-        input_file = open(sys.argv[3])
-    elif len(sys.argv) == 3:
-        pass
-    else:
-        print "usage: server-client.py conf.txt nodeName [input_file]"
 
-    for line in config_file:
-        # parse data from line in file
-        host, port, nodeName = line.split()
+	if len(sys.argv) == 4:
+		input_file = open(sys.argv[3])
+	elif len(sys.argv) == 3:
+		pass
+	else:
+		print "usage: server-client.py conf.txt nodeName [input_file]"
 
-        # store node in dictionary keyed by node name
-        nodes[nodeName] = (host, int(port))
 
-    socket.setdefaulttimeout(None)
+	for line in config_file:
+		# parse data from line in file
+		host, port, nodeName = line.split()
+		# store node in dictionary keyed by node name
+		nodes[nodeName] = (host, int(port))
 
-    # create and start Listener for this node
-    listener = Listener(max_delay, *nodes[myNodeName])
-    listener.start()
-    print "=== Listener Initialized ==="
+	socket.setdefaulttimeout(None)
 
-    # create and start senders for this node
-    senders = []
-    central_sender = None
-    for nodeName in nodes:
-        # init responses to send queue
-        responses_to_send[nodeName] = Queue.Queue()
+	# create and start Listener for this node
+	listener = Listener(max_delay, *nodes[myNodeName])
+	listener.start()
+	print "=== Listener Initialized ==="
 
-        # if this is the central server, init a central sender
-        if (nodeName == CENTRAL_SERVER_NAME):
-            central_sender = CentralSender(max_delay, myNodeName, nodeName, *nodes[nodeName])
-            central_sender.start()
+	# create and start senders for this node
+	senders = []
+	central_sender = None
+	for nodeName in nodes:
+		# init responses to send queue
+		responses_to_send[nodeName] = Queue.Queue()
 
-        # else, build a normal sender
-        elif (nodeName != myNodeName):
-            sender = Sender(max_delay, myNodeName, nodeName, *nodes[nodeName])
-            senders.append(sender)
-            sender.start()
+		# if this is the central server, init a central sender
+		if (nodeName == CENTRAL_SERVER_NAME):
+			central_sender = CentralSender(max_delay, myNodeName, nodeName, *nodes[nodeName])
+			central_sender.start()
 
-    print "=== Senders Initialized ==="
+		# else, build a normal sender
+		# elif (nodeName != myNodeName):
+		else:
+			sender = Sender(max_delay, myNodeName, nodeName, *nodes[nodeName])
+			senders.append(sender)
+			sender.start()
 
-    # read commands from stdin until program is terminated
-    while(1):
-        if input_file:
-            message = input_file.readline()
-            if message == "":
-                input_file = False
-                time.sleep(0.05)
-                print "Done reading input file."
-                message = raw_input()
-            else:
-                print message.strip("\n")
-        else:
-            message = raw_input()
-        currentCommand = None
-        message_data = message.split()
+	print "=== Senders Initialized ==="
 
-        ts = time.time()
-        st = datetime.datetime.fromtimestamp(ts).strftime('%Y-%m-%d %H:%M:%S')
+	# if reading commands from a file, wait until all servers up
+	if input_file:
+		time.sleep(0.1)
+		raw_input("Press enter to begin sending messages...")
 
-        operation = str(message_data[0]).lower()
+	# read commands from stdin or input file until program is terminated
+	while(1):
+		if input_file:
+			message = input_file.readline()
+			if message == "":
+				input_file = False
+				time.sleep(0.05)
+				print "Done reading input file."
+				message = raw_input()
+			else:
+				print message.strip("\n")
+		else:
+			message = raw_input()
+		currentCommand = None
+		message_data = message.split()
 
-        if (operation == "send"):
-            for sender in senders:
-                if message_data[2] == sender.dest_name:
-                    command = Message("send", None, None, None)
-                    command.message = message_data[1]
-                    sender.message_queue.put(command)
+		ts = time.time()
+		st = datetime.datetime.fromtimestamp(ts).strftime('%Y-%m-%d %H:%M:%S')
 
-        elif (operation == "show-all"):
-                keys = key_value_store.keys()
-                for key in keys:
-                    value = key_value_store[key]
-                    print "key = " + str(key) + " value = " + str(value[0])
+		operation = str(message_data[0]).lower()
 
-        elif (operation == "get"):
-                message = Message(operation, message_data[1], None, message_data[2])
-                currentCommand = (message.command, message.key, message.model)
-                acksReceived = []
+		if (operation == "send"):
+			for sender in senders:
+				if message_data[2] == sender.dest_name:
+					command = Message("send", None, None, None)
+					command.message = message_data[1]
+					sender.message_queue.put(command)
 
-                # print "get command. currentCommand: " + str(currentCommand) #DEBUG
+		elif (operation == "show-all"):
+				keys = key_value_store.keys()
+				for key in keys:
+					value = key_value_store[key]
+					print "key = " + str(key) + " value = " + str(value[0])
 
-                # if linearizability, send to central server
-                if message.model == 1:
-                    central_sender.message_queue.put(message)
+		elif (operation == "get"):
+				message = Message(operation, message_data[1], None, message_data[2])
+				currentCommand = (message.command, message.key, message.model)
+				acksReceived = []
 
-                    while len(acksReceived) < 1:
-                        time.sleep(0.05)
-                    print "get returned key = " + str(message.key) + " value = " + str(acksReceived[0])
+				# if linearizability, send to central server
+				if message.model == 1:
+					central_sender.message_queue.put(message)
 
-                # if seq. consistency, can return local value
-                elif message.model == 2:
-                    value = key_value_store[message.key]
-                    print "get returned key = " + str(message.key) + " value = " + str(value[0])
+					while len(acksReceived) < 1:
+						time.sleep(0.05)
+					value = acksReceived[0]
+					print "get returned key = " + str(message.key) + " value = " + str(value[0])
 
-                # else, we need to perform operation and wait for acks
-                elif message.model == 3 or message.model == 4:
-                    # wait for acks from all the nodes in order to repair inconsistencies
-                    numAcksNeeded = 4
+				# if seq. consistency, can return local value
+				elif message.model == 2:
+					value = key_value_store[message.key]
+					print "get returned key = " + str(message.key) + " value = " + str(value[0])
 
-                    # perform get
-                    data = key_value_store[message.key]
-                    acksReceived.append(data)
+				# else, we need to perform operation and wait for acks
+				elif message.model == 3 or message.model == 4:
+					# wait for acks from all the nodes in order to repair inconsistencies
+					numAcksNeeded = 4
 
-                    # send command to all neighbor nodes
-                    for sender in senders:
-                        if sender.dest_name != myNodeName:
-                            sender.message_queue.put(message)
+					# perform get locally
+					data = key_value_store[message.key]
+					acksReceived.append(data)
 
-                    # wait to receive enough acks
-                    while len(acksReceived) < numAcksNeeded:
-                        time.sleep(0.01)
+					# send command to all neighbor nodes
+					for sender in senders:
+						if sender.dest_name != myNodeName:
+							sender.message_queue.put(message)
 
-                    # once we have enough acks, sort the responses by timestamp and perform inconsistency repair
-                    latestData = sorted(acksReceived, key=itemgetter(2), reverse=True)[0]
-                    key_value_store[message.key] = latestData
+					# wait to receive enough acks
+					while len(acksReceived) < numAcksNeeded:
+						time.sleep(0.01)
 
-                    # print out value and proceed to read in a new command
-                    print "get: key = " + str(message.key) + " and value = " + latestData[0]
-                    currentCommand = None
+					# once we have enough acks, sort the responses by timestamp and perform inconsistency repair
+					latestData = sorted(acksReceived, key=itemgetter(2), reverse=True)[0]
+					key_value_store[message.key] = latestData
 
-        elif (operation == "delete"):
-            message = Message(operation, message_data[1], None, None)
-            del key_value_store[message.key]
-            # add delete message into every node's queue
-            for sender in senders:
-                if sender.dest_name != myNodeName:
-                    sender.message_queue.put(message)
-            # no need to wait for ACKs
+					# print out value and proceed to read in a new command
+					print "get returned key = " + str(message.key) + " and value = " + str(latestData[0])
+					currentCommand = None
 
-        elif (operation == "search"):
-            message = Message(operation, message_data[1], None, None)
-            message.source = myNodeName
-            currentCommand = (message.command, message.key)
-            
-            keys = key_value_store.keys()
-            if message.key in keys:
-                print myNodeName
-            for sender in senders:
-                if sender.dest_name != myNodeName:
-                    sender.message_queue.put(message)
+		elif (operation == "delete"):
+			message = Message(operation, message_data[1], None, None)
 
-            while len(acksReceived) < 3:
-                time.sleep(0.01)
+			# delete local copy
+			del key_value_store[message.key]
 
-        elif (operation == "delay"):
-            delay_amount = int(message[1])
-            time.sleep(delay_amount)
+			# send delete command to all other nodes
+			for sender in senders:
+				if sender.dest_name != myNodeName:
+					sender.message_queue.put(message)
+			# don't wait for ACKs
 
-        else:
-            # parse message generically
-            message = Message(operation, message_data[1], message_data[2], message_data[3])
-            currentCommand = (message.command, message.key, message.value, message.model)
-            acksReceived = []
+		elif (operation == "search"):
+			message = Message(operation, message_data[1], None, None)
+			message.source = myNodeName
+			currentCommand = (message.command, message.key)
+			
+			# check to see if key exists locally
+			keys = key_value_store.keys()
+			if message.key in keys:
+				print myNodeName
 
-            if (operation == "insert"):
-                message_keys = key_value_store.keys()
+			# send search command to all neighbor nodes
+			for sender in senders:
+				if sender.dest_name != myNodeName:
+					sender.message_queue.put(message)
 
-                # if this key already exists, don't overwrite it
-                if message.key in message_keys:
-                    print "The key you requested already exists. Use 'update' to change its value."
+			# wait for all neighbors to respond
+			while len(acksReceived) < 3:
+				time.sleep(0.01)
 
-                # else, insert the new value
-                else:
-                    insertValue(message)
+		elif (operation == "delay"):
+			delay_info = message.split()
 
-            elif (operation == "update"):
-                message_keys = key_value_store.keys()
+			# get delay info and sleep
+			delay_amount = float(delay_info[1])
+			time.sleep(delay_amount)
 
-                # if this key already exists, update it
-                if message.key in message_keys:
-                    insertValue(message)
+		else:
+			# parse insert/update messages generically
+			message = Message(operation, message_data[1], message_data[2], message_data[3])
+			currentCommand = (message.command, message.key, message.value, message.model)
+			acksReceived = []
 
-                # else, this is an error
-                else:
-                    print "The key you requested does not exist."
-                  
+			if (operation == "insert"):
+				message_keys = key_value_store.keys()
+
+				# if this key already exists, don't overwrite it
+				if message.key in message_keys:
+					print "The key you requested already exists. Use 'update' to change its value. key = " + str(message.key)
+
+				# else, insert the new value
+				else:
+					insertValue(message)
+
+			elif (operation == "update"):
+				message_keys = key_value_store.keys()
+
+				# if this key already exists, update it
+				if message.key in message_keys:
+					insertValue(message)
+
+				# else, this is an error
+				else:
+					print "The key you requested does not exist, key = " + str(message.key)
+
+>>>>>>> ed759c3c44fe9c4681d4102373fc598326d560c3
