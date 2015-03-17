@@ -21,6 +21,9 @@ responses_to_send = {} # maps a node name to a queue of responses it needs to se
 key_value_store = {} # maps a key to a (value, src, timestamp)
 
 class Message():
+    """
+    Message wrapper class - allows for easy storage and access of message data
+    """
 
 	def __init__(self, command, key, value, model):
 		self.command = str(command).lower() if command else None
@@ -67,28 +70,36 @@ class Listener():
 		self.port = port
 		self.max_delay = max_delay
 
+    # start the thread for this Listener
 	def start(self):
 		listenerThread = threading.Thread(target=self.__listen)
 		listenerThread.setDaemon(True)
 		listenerThread.start()
 
+    # main function that is executed by this Listener's thread
 	def __listen(self):
-		# Create a listener that will receive all incoming messages to this node
+		# Create a socket that will receive all incoming messages to this node
 		sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 		sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
 		sock.settimeout(None)
 		sock.bind((self.host, self.port))
 
+        # loop forever, listening to incoming data
 		while(1):
 			# Receive data from the server
-			received, addr = sock.recvfrom(1024)
+			received = sock.recv(1024)
 			time.sleep(0.01)
+
+            # if we've received data, process it
 			if received:
 				self.process_received(received)
 
-
+    # function to process data received
 	def process_received(self, received):
+        # get timestamp of receipt
 		st = timestamp()
+
+        # unmarshal object
 		message = pickle.loads(received)
 
 		# print "message: " + str(message)    # DEBUG
@@ -206,11 +217,13 @@ class Sender():
 		self.max_delay = max_delay
 		self.message_queue = Queue.Queue()
 
+    # start the thread for this Sender
 	def start(self):
 		senderThread = threading.Thread(target=self.__send)
 		senderThread.setDaemon(True)
 		senderThread.start()
 
+    # main function that is executed by this Sender's thread
 	def __send(self):
 		time.sleep(0.01)
 		print "server ready to send on port " + str(self.port)
@@ -225,7 +238,9 @@ class Sender():
 
 			# check for responses to send
 			if not responses_to_send[self.dest_name].empty():
-				response = responses_to_send[self.dest_name].get()
+				# get response to send
+                response = responses_to_send[self.dest_name].get()
+
 				# if search, don't delay - send instantly
 				if response.command == "search":
 					pass
@@ -233,9 +248,11 @@ class Sender():
 					delay = random.random() * self.max_delay
 					time.sleep(delay)
 
+                # open a socket, marshal the message object, and send it
 				sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 				sock.sendto(pickle.dumps(response), (self.host, self.port))
 
+    # main function that is executed by this Sender's thread
 	def execute_command(self, message):
 		# if search, don't delay - send instantly
 		if message.command == "search":
@@ -308,7 +325,7 @@ def insertValue(message):
     if message.model == 1 or message.model == 2:
         numAcksNeeded = 1
 
-        # send command to central server
+        # send command to central server, wait for acks below
         central_sender.message_queue.put(message)
 
     # else, we need to wait for 1 or 2 ACKs from neighbors
@@ -334,13 +351,20 @@ def insertValue(message):
         print "updated key = " + str(message.key) + " value = " + str(message.value)
     currentCommand = None
 
-# usage: server-client.py conf.txt nodeName
+# usage: server-client.py conf.txt nodeName [input_file]
 if __name__ == "__main__":
     myNodeName = sys.argv[2]
     config_file = open(sys.argv[1],'r')
     delay_info = config_file.readline()
     max_delay = int(delay_info)
     nodes = {}
+
+    if len(sys.argv) == 4:
+        input_file = open(sys.argv[3])
+    elif len(sys.argv) == 3:
+        pass
+    else:
+        print "usage: server-client.py conf.txt nodeName [input_file]"
 
     for line in config_file:
         # parse data from line in file
@@ -378,7 +402,17 @@ if __name__ == "__main__":
 
     # read commands from stdin until program is terminated
     while(1):
-        message = raw_input()
+        if input_file:
+            message = input_file.readline()
+            if message == "":
+                input_file = False
+                time.sleep(0.05)
+                print "Done reading input file."
+                message = raw_input()
+            else:
+                print message.strip("\n")
+        else:
+            message = raw_input()
         currentCommand = None
         message_data = message.split()
 
