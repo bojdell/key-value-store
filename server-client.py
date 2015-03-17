@@ -381,6 +381,7 @@ if __name__ == "__main__":
 			message = input_file.readline()
 			if input_file.readline() == "":
 				input_file = False
+				message = raw_input()
 			else:
 				print message
 		else:
