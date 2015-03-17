@@ -116,10 +116,8 @@ class Listener():
 
             # send ack
             message.ACK = True
-            old_source = message.source
-            message.source = myNodeName
-            responses_to_send[old_source].put(message)
-            # print "sent message : " + str(message) + " to " + old_source    # DEBUG
+            responses_to_send[message.source].put(message)
+            # print "sent message : " + str(message) + " to " + message.source    # DEBUG
 
 
     def process_ACK(self, message):
