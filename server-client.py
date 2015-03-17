@@ -9,6 +9,7 @@ import time
 import datetime
 import random
 import pickle
+from operator import itemgetter # for sorting tuples by timestamp in inconsistency repair
 
 CENTRAL_SERVER_NAME = "CENTRAL"
 
@@ -51,6 +52,11 @@ class Message():
             result += "message: " + self.message + " "
         return result.strip()
 
+# returns a timestamp string
+def timestamp():
+    ts = time.time()
+    return datetime.datetime.fromtimestamp(ts).strftime('%Y-%m-%d %H:%M:%S')
+
 class Listener():
     """
     Class to listen for all incoming messages to this node
@@ -82,8 +88,7 @@ class Listener():
 
 
     def process_received(self, received):
-        ts = time.time()
-        st = datetime.datetime.fromtimestamp(ts).strftime('%Y-%m-%d %H:%M:%S')
+        st = timestamp()
         message = pickle.loads(received)
 
         # print "message: " + str(message)    # DEBUG
@@ -128,8 +133,9 @@ class Listener():
             
             elif message.command == "get":
                 # TODO: check for case where key doesn't exist
-                value = key_value_store[message.key]
-                message.value = value[0]
+                # add all data to message so can compare timestamp
+                data = key_value_store[message.key]
+                message.message = data
 
             elif message.command == "search":
                 message.value = myNodeName
@@ -140,14 +146,13 @@ class Listener():
 
             # send ack
             message.ACK = True
-            #old_source = message.source
-            #message.source = myNodeName
+
+            # place ack in proper response queue
             if message.model == 1 or message.model == 2:
                 responses_to_send[CENTRAL_SERVER_NAME].put(message)
             else:   
                 responses_to_send[message.source].put(message)
             # print "sent message : " + str(message) + " to " + old_source    # DEBUG
-
 
     def process_ACK(self, message):
         # print "currentCommand: " + str(currentCommand)    # DEBUG
@@ -159,9 +164,10 @@ class Listener():
 
             # if this ack is for our current command, process it. else, ignore it
             if command_key == currentCommand:
-                acksReceived.append(message.value)
-                #print "received an ACK"
-                #print "ACK " + str(len(acksReceived)) + " received with value " + message.value
+                # append the data stored in message field, so we can sort by timestamp
+                acksReceived.append(message.message)
+
+                #print "ACK " + str(len(acksReceived)) + " received value = " + message.value
         elif (message.command == "search"):
             command_key = (message.command, message.key)
             if command_key == currentCommand:
@@ -275,19 +281,21 @@ class CentralSender(Sender):
 
 # inserts a value into the key value store, with overwrites
 def insertValue(message):
+    # add timestamp to message
+    message.time_sent = timestamp()
 
     # if we are using linearizability or seq. consistency, send this command to the central server
     if message.model == 1 or message.model == 2:
+        numAcksNeeded = 1
         central_sender.message_queue.put(message)
 
         while len(acksReceived) < 1:
             time.sleep(0.1)
         key_value_store[message.key] = (message.value, myNodeName, st)
-
     # else, we need to wait for acks
     elif message.model == 3 or message.model == 4:
         numAcksNeeded = message.model - 2
-        key_value_store[message.key] = (message.value, myNodeName, st)
+        key_value_store[message.key] = (message.value, myNodeName, message.time_sent)
         # send command to all neighbor nodes
         for sender in senders:
             if sender.dest_name != myNodeName:
@@ -398,11 +406,12 @@ if __name__ == "__main__":
 
                 # else, we need to perform operation and wait for acks
                 elif message.model == 3 or message.model == 4:
-                    numAcksNeeded = message.model - 1
+                    # wait for acks from all the nodes in order to repair inconsistencies
+                    numAcksNeeded = 4
 
                     # perform get
-                    value = key_value_store[message.key]
-                    acksReceived.append(value[0])
+                    data = key_value_store[message.key]
+                    acksReceived.append(data)
 
                     # send command to all neighbor nodes
                     for sender in senders:
@@ -413,8 +422,12 @@ if __name__ == "__main__":
                     while len(acksReceived) < numAcksNeeded:
                         time.sleep(0.01)
 
-                    # once we have enough acks, print out value and proceed to read in a new command
-                    print "get returned key = " + str(message.key) + " value = " + str(min(acksReceived))
+                    # once we have enough acks, sort the responses by timestamp and perform inconsistency repair
+                    latestData = sorted(acksReceived, key=itemgetter(2))[0]
+                    key_value_store[message.key] = latestData
+
+                    # print out value and proceed to read in a new command
+                    print "get: key = " + str(message.key) + " and value = " + latestData[0]
                     currentCommand = None
 
         elif (operation == "delete"):
