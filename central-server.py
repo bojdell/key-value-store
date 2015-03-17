@@ -61,15 +61,15 @@ class CentralListener():
 				command_key = (message.command, message.key, message.model, message.source)
 				waiting_for_response[command_key] = []
 				for node in nodeNames:
-					if node != message.source:
-						messages_to_send[node].put(message)
+					#if node != message.source:
+					messages_to_send[node].put(message)
 
 			elif message.command == "insert" or message.command == "update":
 				command_key = (message.command, message. key, message.value, message.model, message.source)
 				waiting_for_response[command_key] = []
 				for node in nodeNames:
-					if node != message.source:
-						messages_to_send[node].put(message)
+					#if node != message.source:
+					messages_to_send[node].put(message)
 
 	def process_ACK(self, message):
 		commands_waiting = waiting_for_response.keys()
@@ -80,7 +80,7 @@ class CentralListener():
 				waiting_for_response[command_key].append(message.value)
 
 			if message.model == 1:
-				if len(waiting_for_response[command_key]) == 3: 
+				if len(waiting_for_response[command_key]) == 4: 
 					# we've received all responses
 					message.value = min(waiting_for_response[command_key])
 					message.ACK = True
@@ -93,7 +93,7 @@ class CentralListener():
 				waiting_for_response[command_key].append("ACK")
 
 			if message.model == 1 or message.model == 2:
-				if len(waiting_for_response[command_key]) == 3:
+				if len(waiting_for_response[command_key]) == 4:
 					# we've received all responses
 					message.ACK = True
 					messages_to_send[message.source].put(message)

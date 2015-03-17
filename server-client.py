@@ -313,7 +313,7 @@ def insertValue(message):
 		while len(acksReceived) < 1:
 			time.sleep(0.1)
 		# once ACK has been received, insert local copy
-		key_value_store[message.key] = (message.value, myNodeName, st)
+		#key_value_store[message.key] = (message.value, myNodeName, st)
 
 	# else, we need to wait for 1 or 2 ACKs from neighbors
 	elif message.model == 3 or message.model == 4:
@@ -384,7 +384,8 @@ if __name__ == "__main__":
 			central_sender.start()
 
 		# else, build a normal sender
-		elif (nodeName != myNodeName):
+		# elif (nodeName != myNodeName):
+		else:
 			sender = Sender(max_delay, myNodeName, nodeName, *nodes[nodeName])
 			senders.append(sender)
 			sender.start()
