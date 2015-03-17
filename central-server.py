@@ -164,7 +164,7 @@ if __name__ == "__main__":
 	print "=== Senders Initialized ==="
 
 	while(1):
-		pass
+		time.sleep(0.01)
 
 
 
