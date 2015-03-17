@@ -21,10 +21,10 @@ key_value_store = {} # maps a key to a (value, src, timestamp)
 class Message():
 
     def __init__(self, command, key, value, model):
-        self.command = command
-        self.key = key
-        self.value = value
-        self.model = model
+        self.command = str(command).lower() if command else None
+        self.key = int(key) if key else None
+        self.value = int(value) if value else None
+        self.model = int(model) if model else None
         self.source = None
         self.time_sent = None
         self.ACK = False
@@ -98,18 +98,18 @@ class Listener():
             command_key = (message.command, message.key, message.model)
             if command_key in commands_waiting: # TODO: fix this
                 waiting_for_response[command_key].append(message.value)
-                if int(message.model) == 1:
+                if message.model == 1:
                     print "get: key = " + str(message.key) + " and value = " + str(message.value)
                     del waiting_for_response[command_key]
-                if int(message.model) == 2:
+                elif message.model == 2:
                     # this should never happen
                     print "process_received: Should not receive an ACK on get for sequential consistency!"
                     del waiting_for_response[command_key]
-                if int(message.model) == 3:
+                elif message.model == 3:
                     if len(waiting_for_response[command_key]) == 2:
                         print "get: key = " + str(message.key) + " and value = " + str(message.value)
                         del waiting_for_response[command_key]
-                if int(message.model) == 4:
+                elif message.model == 4:
                     # if different values were received, the largest will be printed out
                     if len(waiting_for_response[command_key]) == 3:
                         print "get: key = " + str(message.key) + " and value = " + str(max(waiting_for_response[command_key]))
@@ -119,16 +119,16 @@ class Listener():
             if command_key in commands_waiting:
                 waiting_for_response[command_key].append("ACK")
                 # check to see if command is completed!
-                if int(message.model) == 1:
+                if message.model == 1:
                     del waiting_for_response[command_key]
                     print "command completed"
-                if int(message.model) == 2:
+                elif message.model == 2:
                     del waiting_for_response[command_key]
                     print "command completed"
-                if int(message.model) == 3:
+                elif message.model == 3:
                     del waiting_for_response[command_key]
                     print "command completed"
-                if int(message.model) == 4:
+                elif message.model == 4:
                     # command complete after two ACKs
                     if len(waiting_for_response[command_key]) == 2:
                         del waiting_for_response[command_key]
@@ -327,14 +327,16 @@ if __name__ == "__main__":
         ts = time.time()
         st = datetime.datetime.fromtimestamp(ts).strftime('%Y-%m-%d %H:%M:%S')
 
-        if (str(message_data[0]).lower() == "send"):
+        operation = str(message_data[0]).lower()
+
+        if (operation == "send"):
             for sender in senders:
                 if message_data[2] == sender.dest_name:
                     command = Message("send", None, None, None)
                     command.message = message_data[1]
                     sender.message_queue.put(command)
 
-        if (str(message_data[0]).lower() == "insert"):
+        elif (operation == "insert"):
             message = Message("insert", message_data[1], message_data[2], message_data[3])
             message_keys = key_value_store.keys()
 
@@ -343,28 +345,28 @@ if __name__ == "__main__":
             else:
                 waiting_for_response[(message.command, message.key, message.value, message.model)] = [] # wait for ACK on this command
                 key_value_store[message.key] = (message.value, myNodeName, st)
-                if int(message.model) == 1:
+                if message.model == 1:
                     central_sender.message_queue.put(message) # just send to central server
-                elif int(message.model) == 2:
+                elif message.model == 2:
                     central_sender.message_queue.put(message) # just send to central server
-                elif int(message.model) == 3 or int(message.model) == 4:
+                elif message.model == 3 or message.model == 4:
                     # send to all neighbor nodes
                     for sender in senders:
                         if sender.dest_name != myNodeName:
                             sender.message_queue.put(message)
 
-        if (str(message_data[0]).lower() == "update"):
+        if (operation == "update"):
             message = Message("update", message_data[1], message_data[2], message_data[3])
             
             message_keys = key_value_store.keys()
             if message.key in message_keys:
                 waiting_for_response[(message.command, message.key, message.value, message.model)] = [] # wait for ACK on this command
                 key_value_store[message.key] = (message.value, myNodeName, st)
-                if int(message.model) == 1:
+                if message.model == 1:
                     central_sender.message_queue.put(message) # just send to central server
-                elif int(message.model) == 2:
+                elif message.model == 2:
                     central_sender.message_queue.put(message) # just send to central server
-                elif int(message.model) == 3 or int(message.model) == 4:
+                elif message.model == 3 or message.model == 4:
                     # send to all neighbor nodes
                     for sender in senders:
                         if sender.dest_name != myNodeName:
@@ -372,23 +374,23 @@ if __name__ == "__main__":
             else:
                 print "The key you requested does not exist."
 
-        if (str(message_data[0]).lower() == "get"):
+        elif (operation == "get"):
             message = Message("get", message_data[1], None, message_data[2])
             waiting_for_response[(message.command, message.key, message.model)] = [] # wait for ACK on this command
 
-            if int(message.model) == 1:
+            if message.model == 1:
                 central_sender.message_queue.put(message)
-            elif int(message.model) == 2:
+            elif message.model == 2:
                 value = key_value_store[message.key]
                 print "get: key = " + str(message.key) + " and value = " + str(value[0])
-            elif int(message.model) == 3 or int(message.model) == 4:
+            elif message.model == 3 or message.model == 4:
                 value = key_value_store[message.key]
                 waiting_for_response[(message.command, message.key, message.model)].append(value[0])
                 for sender in senders:
                     # send to all neighbor nodes
                     sender.message_queue.put(message)
 
-        if (str(message_data[0]).lower() == "show-all"):
+        elif (operation == "show-all"):
             keys = key_value_store.keys()
             for key in keys:
                 value = key_value_store[key]
