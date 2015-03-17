@@ -146,10 +146,6 @@ if __name__ == "__main__":
 	listener.start()
 	print "=== Listener Initialized ==="
 
-	# wait for other nodes to be started
-	time.sleep(0.05)
-	raw_input("Press Enter to launch senders...")
-
 	# create and start senders for this node
 	senders = []
 

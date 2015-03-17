@@ -31,6 +31,26 @@ class Message():
         self.ACK = False
         self.message = None
 
+    def __str__(self):
+        result = ""
+        if self.command:
+            result += "command: " + self.command + " "
+        if self.key:
+            result += str(self.key) + " "
+        if self.value:
+            result += str(self.value) + " "
+        if self.model:
+            result += str(self.model) + " "
+        if self.source:
+            result += "from: " + self.source + " "
+        if self.time_sent:
+            result += "time_sent: " + str(self.time_sent) + " "
+        if self.ACK:
+            result += "ACK: " + str(self.ACK) + " "
+        if self.message:
+            result += "message: " + self.message + " "
+        return result.strip()
+
 class Listener():
     """
     Class to listen for all incoming messages to this node
@@ -40,7 +60,6 @@ class Listener():
         self.host = host
         self.port = port
         self.max_delay = max_delay
-        self.message_queue = Queue.Queue()
 
     def start(self):
         listenerThread = threading.Thread(target=self.__listen)
@@ -66,6 +85,8 @@ class Listener():
         ts = time.time()
         st = datetime.datetime.fromtimestamp(ts).strftime('%Y-%m-%d %H:%M:%S')
         message = pickle.loads(received)
+
+        print "message: " + str(message)
         
         # if this response is an ack, process it
         if message.ACK:
@@ -77,6 +98,8 @@ class Listener():
 
         # else, we need to perform the command and send an ack
         else:
+            print "Received command \"" + str(message) + "\""
+
             # parse and perform command
             if message.command == "insert":
                 # TODO: check for case where key already exists
@@ -93,29 +116,35 @@ class Listener():
 
             # send ack
             message.ACK = True
+            print "Sent ACK to " + message.source
+            message.source = myNodeName
             responses_to_send[message.source].put(message)
+            print responses_to_send
 
 
     def process_ACK(self, message):
+        print "currentCommand: " + str(currentCommand)
         if (message.command == "get"):
             command_key = (message.command, message.key, message.model)
+            print "command_key: " + str(command_key)
 
             # if this ack is for our current command, process it. else, ignore it
             if command_key == currentCommand:
                 acksReceived.append(message.value)
-                print "ACK " + len(acksReceived) + " received with value " + message.value
+                print "ACK " + str(len(acksReceived)) + " received with value " + message.value
         else:
             command_key = (message.command, message.key, message.value, message.model)
+            print "command_key: " + str(command_key)
             
             # if this ack is for our current command, process it. else, ignore it
             if command_key == currentCommand:
                 acksReceived.append("ACK")
-                print "ACK " + len(acksReceived) + " received"
+                print "ACK " + str(len(acksReceived)) + " received"
 
 
 class CentralListener(Listener):
     """
-    Subclass of Listener to operate at Central Server to listen for all incoming messages to this node
+    Subclass of Listener to listen for all incoming messages to this node from a Central Server
     """
 
     def __listen(self):
@@ -195,13 +224,17 @@ class Sender():
             if self.message_queue.empty(): # TODO: also check global response queue here
                 time.sleep(0.01)
             else:
+                print "got message from message queue"
                 message = self.message_queue.get()
                 self.execute_command(message)
 
             if not responses_to_send[self.dest_name].empty():
+                print "got message from response queue"
                 response = responses_to_send[self.dest_name].get()
                 sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+                print "sending response: " + str(response)
                 sock.sendto(pickle.dumps(response), (self.host, self.port))
+                print "sent response"
 
     def execute_command(self, message):
         delay = random.random() * self.max_delay
@@ -219,7 +252,7 @@ class Sender():
 
 class CentralSender(Sender):
     """
-    Subclass of Sender to operate at Central Server to send outbound messages
+    Subclass of Sender to send messages to a Central Server
     """
 
     def __send(self):
@@ -252,6 +285,7 @@ class CentralSender(Sender):
                 sock.sendto(pickle.dumps(message), (self.host, self.port))
                 sock.close()
 
+# inserts a value into the key value store, with overwrites
 def insertValue(message):
     # set this as our current command and init acksReceived to be empty
     currentCommand = (message.command, message.key, message.value, message.model)
@@ -259,6 +293,7 @@ def insertValue(message):
 
     # insert value to key-value store
     key_value_store[message.key] = (message.value, myNodeName, st)
+    print "inserted key = " + str(message.key) + " value = " + str(message.value)
 
     # if we are using linearizability or seq. consistency, send this command to the central server
     if message.model == 1 or message.model == 2:
@@ -273,9 +308,11 @@ def insertValue(message):
             if sender.dest_name != myNodeName:
                 sender.message_queue.put(message)
 
+        print "Send command \"" + str(message) + "\", waiting for " + str(numAcksNeeded) + " acks"
+
         # wait to receive enough acks
         while len(acksReceived) < numAcksNeeded:
-            time.sleep(0.01)
+            time.sleep(0.1)
 
         # once we have enough acks, proceed to read in a new command
 
@@ -301,10 +338,6 @@ if __name__ == "__main__":
     listener.start()
     print "=== Listener Initialized ==="
 
-    # wait for other nodes to be started
-    time.sleep(0.05)
-    raw_input("Press Enter to launch senders...")
-
     # create and start senders for this node
     senders = []
     central_sender = None
@@ -327,6 +360,7 @@ if __name__ == "__main__":
 
     # read commands from stdin until program is terminated
     while(1):
+        currentCommand = None
         message = raw_input()
         message_data = message.split()
 
@@ -384,6 +418,8 @@ if __name__ == "__main__":
         else:
             # parse message generically
             message = Message(operation, message_data[1], message_data[2], message_data[3])
+            currentCommand = (message.command, message.key, message.value, message.model)
+            acksReceived = []
 
             if (operation == "insert"):
                 message_keys = key_value_store.keys()
