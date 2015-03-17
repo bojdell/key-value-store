@@ -86,7 +86,7 @@ class Listener():
         st = datetime.datetime.fromtimestamp(ts).strftime('%Y-%m-%d %H:%M:%S')
         message = pickle.loads(received)
 
-        # print "message: " + str(message)
+        print "message: " + str(message)    # DEBUG
         
         # if this response is an ack, process it
         if message.ACK:
@@ -116,16 +116,17 @@ class Listener():
 
             # send ack
             message.ACK = True
-            print "Sent ACK to " + message.source
+            old_source = message.source
             message.source = myNodeName
-            responses_to_send[message.source].put(message)
+            responses_to_send[old_source].put(message)
+            print "sent message : " + str(message) + " to " + old_source    # DEBUG
 
 
     def process_ACK(self, message):
-        # print "currentCommand: " + str(currentCommand)
+        print "currentCommand: " + str(currentCommand)    # DEBUG
         if (message.command == "get"):
             command_key = (message.command, message.key, message.model)
-            # print "command_key: " + str(command_key)
+            print "command_key: " + str(command_key)    # DEBUG
 
             # if this ack is for our current command, process it. else, ignore it
             if command_key == currentCommand:
@@ -223,17 +224,17 @@ class Sender():
             if self.message_queue.empty(): # TODO: also check global response queue here
                 time.sleep(0.01)
             else:
-                # print "got message from message queue"
+                print "got message from message queue"    # DEBUG
                 message = self.message_queue.get()
                 self.execute_command(message)
 
             if not responses_to_send[self.dest_name].empty():
-                # print "got message from response queue"
+                print "got message from response queue"    # DEBUG
                 response = responses_to_send[self.dest_name].get()
                 sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-                # print "sending response: " + str(response)
+                print "sending response: " + str(response)    # DEBUG
                 sock.sendto(pickle.dumps(response), (self.host, self.port))
-                # print "sent response"
+                print "sent response"    # DEBUG
 
     def execute_command(self, message):
         delay = random.random() * self.max_delay
@@ -314,6 +315,7 @@ def insertValue(message):
             time.sleep(0.1)
 
         # once we have enough acks, proceed to read in a new command
+        currentCommand = None
 
 # usage: server-client.py conf.txt nodeName
 if __name__ == "__main__":
@@ -359,8 +361,8 @@ if __name__ == "__main__":
 
     # read commands from stdin until program is terminated
     while(1):
-        currentCommand = None
         message = raw_input()
+        currentCommand = None
         message_data = message.split()
 
         ts = time.time()
@@ -413,6 +415,7 @@ if __name__ == "__main__":
                         time.sleep(0.01)
 
                     # once we have enough acks, proceed to read in a new command
+                    currentCommand = None
 
         else:
             # parse message generically
