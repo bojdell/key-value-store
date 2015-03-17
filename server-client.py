@@ -312,11 +312,11 @@ def insertValue(message):
 			time.sleep(0.05)
 
 	# once we have enough acks, print result and proceed to read in a new command
-	"""if message.command == "insert":
+	if message.command == "insert":
 		print "inserted key = " + str(message.key) + " value = " + str(message.value)
 	else:
 		print "updated key = " + str(message.key) + " value = " + str(message.value)
-	currentCommand = None"""
+	currentCommand = None
 
 
 
@@ -384,7 +384,7 @@ if __name__ == "__main__":
 				print "Done reading input file."
 				message = raw_input()
 			else:
-				print message
+				print message.strip("\n")
 		else:
 			message = raw_input()
 		currentCommand = None
