@@ -289,6 +289,9 @@ def insertValue(message):
         numAcksNeeded = 1
         central_sender.message_queue.put(message)
 
+        while len(acksReceived) < 1:
+            time.sleep(0.1)
+        key_value_store[message.key] = (message.value, myNodeName, st)
     # else, we need to wait for acks
     elif message.model == 3 or message.model == 4:
         numAcksNeeded = message.model - 2
@@ -307,14 +310,13 @@ def insertValue(message):
             # print "acks recvd " + str(acksReceived) #DEBUG
             # print "len of acks recvd " + str(len(acksReceived)) #DEBUG
             time.sleep(0.05)
-        print "ACK"
 
-        # once we have enough acks, print result and proceed to read in a new command
-        if message.command == "insert":
-            print "inserted key = " + str(message.key) + " value = " + str(message.value)
-        else:
-            print "updated key = " + str(message.key) + " value = " + str(message.value)
-        currentCommand = None
+    # once we have enough acks, print result and proceed to read in a new command
+    if message.command == "insert":
+        print "inserted key = " + str(message.key) + " value = " + str(message.value)
+    else:
+        print "updated key = " + str(message.key) + " value = " + str(message.value)
+    currentCommand = None
 
 # usage: server-client.py conf.txt nodeName
 if __name__ == "__main__":
@@ -451,7 +453,6 @@ if __name__ == "__main__":
 
             while len(acksReceived) < 3:
                 time.sleep(0.01)
-            print "ACK"
 
         elif (operation == "delay"):
             delay_amount = int(message[1])
