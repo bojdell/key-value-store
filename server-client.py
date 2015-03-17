@@ -101,6 +101,7 @@ class Listener():
 		elif message.command == "send":
 			print "Received \"" + message.message + "\" from " + message.source + " max delay is " + str(self.max_delay) + " s, system time is " + st
 
+		# if it was a delete command, simply delete local copy
 		elif message.command == "delete":
 			keys = key_value_store.keys()
 			if message.key in keys:
@@ -108,26 +109,31 @@ class Listener():
 			else:
 				print "This key doesn't exist, key = " + str(message.key)
 
+		# else, process the command
 		else:
 			# print "Received command \"" + str(message) + "\"" #DEBUG
 
 			keys = key_value_store.keys()
 			# parse and perform command
 			if message.command == "insert":
+				# check if key already exists in local copy
 				if message.key in keys:
 					print "This key already exists, key = " + str(message.key)
 				else:
 					key_value_store[message.key] = (message.value, message.source, message.time_sent)
-					#print "inserted key = " + str(message.key) + " value = " + str(message.value)
 
 			elif message.command == "update":
+				# check if key exists in local copy
 				if message.key in keys:
 					value = key_value_store[message.key]
+
+					# get currently stored timestamp and compared to time_sent of incoming update
 					ts_curr = time.strptime(value[2], "%Y-%m-%d %H:%M:%S")
 					ts_next = time.strptime(message.time_sent, "%Y-%m-%d %H:%M:%S")
+
+					# only replace local copy if incoming timestamp is greater than current local timestamp
 					if ts_next > ts_curr:
 						key_value_store[message.key] = (message.value, message.source, message.time_sent)
-						#print "updated key = " + str(message.key) + " value = " + str(message.value)
 				else:
 					print "This key doesn't exist, key = " + str(message.key)
 			
@@ -167,8 +173,10 @@ class Listener():
 				# append the data stored in message field, so we can sort by timestamp
 				acksReceived.append(message.message)
 
-				#print "ACK " + str(len(acksReceived)) + " received value = " + message.value
+		# if search, 'YES' indicates key in neighbor's copy
+		# and 'NO' indicates key not in neighbor's copy
 		elif (message.command == "search"):
+			# if this ack is for our current command, process it. else, ignore it
 			command_key = (message.command, message.key)
 			if command_key == currentCommand:
 				acksReceived.append("ACK")
@@ -208,15 +216,17 @@ class Sender():
 		print "server ready to send on port " + str(self.port)
 
 		while (1):
-			if self.message_queue.empty(): # TODO: also check global response queue here
+			# check for messages to send
+			if self.message_queue.empty():
 				time.sleep(0.01)
 			else:
-				# print "got message from message queue"    # DEBUG
 				message = self.message_queue.get()
 				self.execute_command(message)
 
+			# check for responses to send
 			if not responses_to_send[self.dest_name].empty():
 				response = responses_to_send[self.dest_name].get()
+				# if search, don't delay - send instantly
 				if response.command == "search":
 					pass
 				else:
@@ -227,6 +237,7 @@ class Sender():
 				sock.sendto(pickle.dumps(response), (self.host, self.port))
 
 	def execute_command(self, message):
+		# if search, don't delay - send instantly
 		if message.command == "search":
 			pass
 		else:
@@ -236,6 +247,7 @@ class Sender():
 			if message.message == "send":
 				print "Sent \"" + message.key + "\" to " + self.dest_name + ", system time is " + st
 
+			# add timestamp and the source node
 			message.time_sent = st
 			message.source = self.src_name       
 			time.sleep(delay)
